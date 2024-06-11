@@ -1,0 +1,3 @@
+[submodule "third_party/Metaworld"]
+	path = third_party/Metaworld
+	url = git@github.com:eneserciyes/Metaworld.git

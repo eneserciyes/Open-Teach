@@ -88,7 +88,7 @@ class MetaworldEnv(Arm_Env):
         env.set_task(task)
 
         # add wrappers
-        env = ObservationWrapper(
+        env = make(
             env,
             camera_names=camera_names,
             sample_points=sample_points,
