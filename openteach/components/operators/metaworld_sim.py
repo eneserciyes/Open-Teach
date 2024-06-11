@@ -1,45 +1,26 @@
 import numpy as np
-import matplotlib.pyplot as plt
+from scipy.spatial.transform import Rotation
 import zmq
-
-from tqdm import tqdm
-
 from copy import deepcopy as copy
-from openteach.constants import *
-from openteach.utils.timer import FrequencyTimer
+
+from openteach.components.operators.calibrators.allegro import (
+    OculusThumbBoundCalibrator,
+)
+from openteach.components.operators.operator import Operator
+from openteach.constants import (
+    ARM_TELEOP_CONT,
+    ARM_TELEOP_STOP,
+    GRIPPER_CLOSE,
+    GRIPPER_OPEN,
+    OCULUS_JOINTS,
+    VR_FREQ,
+)
 from openteach.utils.network import ZMQKeypointSubscriber, ZMQKeypointPublisher
-from openteach.utils.vectorops import *
-from openteach.utils.files import *
-from scipy.spatial.transform import Rotation, Slerp
-from .operator import Operator
-from .calibrators.allegro import OculusThumbBoundCalibrator
-
-import robosuite.utils.transform_utils as T
-from scipy.spatial.transform import Rotation as R
-
-np.set_printoptions(precision=2, suppress=True)
+from openteach.utils.timer import FrequencyTimer
+from openteach.utils.vectorops import moving_average
 
 
-# Rotation should be filtered when it's being sent
-class Filter:
-    def __init__(self, state, comp_ratio=0.6):
-        self.pos_state = state[:3]
-        self.ori_state = state[3:7]
-        self.comp_ratio = comp_ratio
-
-    def __call__(self, next_state):
-        self.pos_state = self.pos_state[:3] * self.comp_ratio + next_state[:3] * (
-            1 - self.comp_ratio
-        )
-        ori_interp = Slerp(
-            [0, 1],
-            Rotation.from_quat(np.stack([self.ori_state, next_state[3:7]], axis=0)),
-        )
-        self.ori_state = ori_interp([1 - self.comp_ratio])[0].as_quat()
-        return np.concatenate([self.pos_state, self.ori_state])
-
-
-class LiberoSimOperator(Operator):
+class MetaworldSimOperator(Operator):
     def __init__(
         self,
         host,
@@ -47,23 +28,23 @@ class LiberoSimOperator(Operator):
         stream_configs,
         stream_oculus,
         endeff_publish_port,
-        endeffpossubscribeport,
-        robotposesubscribeport,
+        endeff_pos_subscribe_port,
+        robot_pose_subscribe_port,
         moving_average_limit,
         arm_resolution_port=None,
     ):
-        self.notify_component_start("libero operator")
+        self.notify_component_start("metaworld operator")
         self._host, self._port = host, transformed_keypoints_port
         self._hand_transformed_keypoint_subscriber = ZMQKeypointSubscriber(
             host=self._host, port=self._port, topic="transformed_hand_coords"
         )
         self._arm_transformed_keypoint_subscriber = ZMQKeypointSubscriber(
-            host=host, port=transformed_keypoints_port, topic="transformed_hand_frame"
+            host=self._host, port=self._port, topic="transformed_hand_frame"
         )
 
-        # Initalizing the robot controller
-        self.resolution_scale = 1  # NOTE: Get this from a socket
-        self.arm_teleop_state = ARM_TELEOP_STOP  # We will start as the cont
+        # initialize the robot controller
+        self.resolution_scale = 1
+        self.arm_teleop_state = ARM_TELEOP_STOP
         self.gripper_correct_state = 0
         self.pause_flag = 0
         self.gripper_flag = 1
@@ -76,33 +57,30 @@ class LiberoSimOperator(Operator):
         )
 
         self.end_eff_position_subscriber = ZMQKeypointSubscriber(
-            host=host, port=endeffpossubscribeport, topic="endeff_coords"
+            host=host, port=endeff_pos_subscribe_port, topic="endeff_coords"
         )
 
         self.end_eff_position_publisher = ZMQKeypointPublisher(
             host=host, port=endeff_publish_port
         )
 
-        # robot pose subscriber
         self.robot_pose_subscriber = ZMQKeypointSubscriber(
-            host=host, port=robotposesubscribeport, topic="robot_pose"
+            host=host, port=robot_pose_subscribe_port, topic="robot_pose"
         )
 
-        # Calibrating to get the thumb bounds
+        # Calibration
         self._calibrate_bounds()
 
         self._stream_oculus = stream_oculus
         self.stream_configs = stream_configs
         self._timer = FrequencyTimer(VR_FREQ)
-        self._robot = "Libero_Sim"
+        self._robot = "Metaworld_Sim"
         self.is_first_frame = True
 
-        # Frequency timer
-        self._timer = FrequencyTimer(VR_FREQ)
         self.direction_counter = 0
         self.current_direction = 0
         # Moving average queues
-        self.moving_Average_queue = []
+        self.moving_average_queue = []
         self.moving_average_limit = moving_average_limit
         self.hand_frames = []
         self.count = 0
@@ -136,7 +114,7 @@ class LiberoSimOperator(Operator):
             data = self.transformed_arm_keypoint_subscriber.recv_keypoints(
                 flags=zmq.NOBLOCK
             )
-            if not data is None:
+            if data is not None:
                 break
         if data is None:
             return None
@@ -277,7 +255,6 @@ class LiberoSimOperator(Operator):
             if self.gripper_cnt == 1:
                 self.prev_gripper_flag = self.gripper_flag
                 self.gripper_flag = not self.gripper_flag
-                gripper_fl = True
         else:
             self.gripper_cnt = 0
 
@@ -358,19 +335,19 @@ class LiberoSimOperator(Operator):
         R_curr = curr_robot_pose[:3, :3]
         rel_pos = (T_togo - T_curr) * translation_scale
         rel_rot = np.linalg.pinv(R_curr) @ R_togo
-        rel_axis_angle = R.from_matrix(rel_rot).as_rotvec()
+        rel_axis_angle = Rotation.from_matrix(rel_rot).as_rotvec()
         rel_axis_angle = rel_axis_angle * 5.0
 
         self.robot_moving_H = copy(H_RT_RH)
-        action = np.concatenate([rel_pos, rel_axis_angle, [gripper_state]])
+        action = np.concatenate([rel_pos, [gripper_state]])
 
         averaged_action = moving_average(
             action,
-            self.moving_Average_queue,
+            self.moving_average_queue,
             self.moving_average_limit,
         )
 
-        if self.arm_teleop_state == ARM_TELEOP_CONT and gripper_flag == False:
+        if self.arm_teleop_state == ARM_TELEOP_CONT and not gripper_flag:
             self.end_eff_position_publisher.pub_keypoints(
                 averaged_action, "endeff_coords"
             )
@@ -378,4 +355,3 @@ class LiberoSimOperator(Operator):
             self.end_eff_position_publisher.pub_keypoints(
                 np.concatenate([np.zeros(6), [gripper_state]]), "endeff_coords"
             )
-

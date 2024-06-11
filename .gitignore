@@ -1,6 +1,9 @@
 # VS Code config
 .vscode
 
+# Python
+*.egg-info/
+
 # Package Installation
 holo_bot.egg-info
 
