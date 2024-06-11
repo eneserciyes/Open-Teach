@@ -9,9 +9,57 @@ from openteach.utils.network import (
     ZMQKeypointSubscriber,
 )
 from openteach.components.environment.arm_env import Arm_Env
-from openteach.utils.images import rescale_image
+from gymnasium.envs.mujoco.mujoco_rendering import OffScreenViewer
+
+
+import gymnasium as gym
 
 import metaworld
+
+
+def depthimg2Meters(model, depth):
+    extent = model.stat.extent
+    near = model.vis.map.znear * extent
+    far = model.vis.map.zfar * extent
+    image = near / (1 - depth * (1 - near / far))
+    return image
+
+
+def render(renderer, camera_id, depth=False):
+    renderer.make_context_current()
+    mode = "depth_array" if depth else "rgb_array"
+    r = renderer.render(mode, camera_id)
+    if depth:
+        r = depthimg2Meters(renderer.model, r)
+    return r
+
+
+def preprocess_img_and_depth(img, depth):
+    return np.transpose(np.flip(img, axis=0), (2, 0, 1)), np.flip(depth, axis=0)
+
+
+class RGBWrapper(gym.Wrapper):
+    def __init__(self, env, camera_name) -> None:
+        super(RGBWrapper, self).__init__(env)
+        self._camera_name = camera_name
+
+        self.renderer = OffScreenViewer(model=env.model, data=env.data)
+        self.renderer.make_context_current()
+
+    def reset(self, **kwargs):
+        feats, _ = self.env.reset(**kwargs)
+        obs = {}
+        obs["proprioception"] = feats
+
+        image = render(self.renderer, self.env.model.cam(self._camera_name).id)
+        depth = render(
+            self.renderer, self.env.model.cam(self._camera_name).id, depth=True
+        )
+        image, depth = preprocess_img_and_depth(image, depth)
+        obs["image"] = image
+        obs["depth"] = depth
+
+        return obs
 
 
 # Libero Environment class
@@ -79,7 +127,7 @@ class MetaworldEnv(Arm_Env):
 
         ml1 = metaworld.ML1(task_name)  # Construct the benchmark, sampling tasks
         env = ml1.train_classes[task_name](
-            width=width, height=height
+            width=224, height=224
         )  # Create an environment with task
         seed = np.random.randint(0, 100000)
         env.seed(seed)
@@ -88,10 +136,6 @@ class MetaworldEnv(Arm_Env):
         env.set_task(task)
 
         # add wrappers
-        env = make(
-            env,
-            camera_names=camera_names,
-            sample_points=sample_points,
-            bounds=bounds,
-            voxel_size=voxel_size,
-        )
+        env = RGBWrapper(env, "corner1")
+
+        self.env = env

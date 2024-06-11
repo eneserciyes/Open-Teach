@@ -38,7 +38,6 @@ class LiberoEnv(Arm_Env):
         self._timer = FrequencyTimer(VR_FREQ)
         self.host = host
         self.camport = camport
-        self.stream_oculus = stream_oculus
 
         self._stream_oculus = stream_oculus
 

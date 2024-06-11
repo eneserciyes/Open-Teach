@@ -378,4 +378,3 @@ class LiberoSimOperator(Operator):
             self.end_eff_position_publisher.pub_keypoints(
                 np.concatenate([np.zeros(6), [gripper_state]]), "endeff_coords"
             )
-
