@@ -1,6 +1,9 @@
 import random
+import time
 import numpy as np
+import cv2
 from openteach.constants import DEPTH_PORT_OFFSET, VIZ_PORT_OFFSET, VR_FREQ
+from openteach.utils.images import rescale_image
 from openteach.utils.timer import FrequencyTimer
 from openteach.utils.network import (
     ZMQCameraPublisher,
@@ -35,7 +38,7 @@ def render(renderer, camera_id, depth=False):
 
 
 def preprocess_img_and_depth(img, depth):
-    return np.transpose(np.flip(img, axis=0), (2, 0, 1)), np.flip(depth, axis=0)
+    return cv2.cvtColor(np.flip(img, axis=0), cv2.COLOR_BGR2RGB), np.flip(depth, axis=0)
 
 
 class RGBWrapper(gym.Wrapper):
@@ -47,9 +50,9 @@ class RGBWrapper(gym.Wrapper):
         self.renderer.make_context_current()
 
     def reset(self, **kwargs):
-        feats, _ = self.env.reset(**kwargs)
+        feats, info = self.env.reset(**kwargs)
         obs = {}
-        obs["proprioception"] = feats
+        obs["proprioception"] = feats.astype(np.float32)
 
         image = render(self.renderer, self.env.model.cam(self._camera_name).id)
         depth = render(
@@ -59,10 +62,25 @@ class RGBWrapper(gym.Wrapper):
         obs["image"] = image
         obs["depth"] = depth
 
-        return obs
+        return obs, info
+
+    def step(self, action):
+        observation, reward, done, trunc, info = self.env.step(action)
+        obs = {}
+        obs["proprioception"] = observation.astype(np.float32)
+
+        image = render(self.renderer, self.env.model.cam(self._camera_name).id)
+        depth = render(
+            self.renderer, self.env.model.cam(self._camera_name).id, depth=True
+        )
+        image, depth = preprocess_img_and_depth(image, depth)
+        obs["image"] = image
+        obs["depth"] = depth
+
+        return obs, reward, done, trunc, info
 
 
-# Libero Environment class
+# Metaworld Environment class
 class MetaworldEnv(Arm_Env):
     def __init__(
         self,
@@ -139,3 +157,63 @@ class MetaworldEnv(Arm_Env):
         env = RGBWrapper(env, "corner1")
 
         self.env = env
+        position = self.reset()
+        self.robot_pose_publisher.pub_keypoints(position, "robot_pose")
+
+    def reset(self):
+        self.obs, _ = self.env.reset()
+        return self.get_endeff_position(self.obs)
+
+    def get_time(self):
+        return time.time()
+
+    def get_endeff_position(self, obs):
+        eef_pos = obs["proprioception"][:3]
+        gripper_pos = obs["proprioception"][3]
+        eef_quat = np.array([0, 0, 0, 1])
+
+        return np.concatenate([[gripper_pos], eef_pos, eef_quat])
+
+    @property
+    def timer(self):
+        return self._timer
+
+    def take_action(self):
+        action = self.endeff_pos_subscriber.recv_keypoints()
+        x, y, z = action[:3]
+        action = np.concatenate([[-y], [-z], [-x], [action[6]]])
+        # print(f"{action=}")
+        self.obs, reward, done, trunc, info = self.env.step(action)
+        if done or trunc:
+            self.obs, _ = self.env.reset()
+
+    def stream(self):
+        self.notify_component_start(f"{self.name} environment")
+
+        while True:
+            self.timer.start_loop()
+            color_image, depth_image, timestamp = (
+                self.obs["image"],
+                self.obs["depth"],
+                self.get_time(),
+            )
+            self.rgb_publisher.pub_rgb_image(color_image, timestamp)
+            self.rgb_publisher_ego.pub_rgb_image(color_image, timestamp)
+            self.timestamp_publisher.pub_keypoints(timestamp, "timestamps")
+
+            if self._stream_oculus:
+                self.rgb_viz_publisher.send_image(rescale_image(color_image, 1))
+
+            self.depth_publisher.pub_rgb_image(depth_image, timestamp)
+            self.depth_publisher_ego.pub_rgb_image(depth_image, timestamp)
+
+            position = self.get_endeff_position(self.obs)
+
+            self.endeff_publisher.pub_keypoints(position, "endeff_coords")
+
+            self.take_action()
+
+            position = self.get_endeff_position(self.obs)
+            self.robot_pose_publisher.pub_keypoints(position, "robot_pose")
+
+            self.timer.end_loop()

@@ -162,7 +162,6 @@ class LiberoEnv(Arm_Env):
     # Take action
     def take_action(self):
         action = self.endeff_pos_subscriber.recv_keypoints()
-        print(action)
         self.obs, _, _, _ = self.env.step(action)
 
     # Stream the environment

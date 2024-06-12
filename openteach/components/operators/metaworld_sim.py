@@ -28,8 +28,8 @@ class MetaworldSimOperator(Operator):
         stream_configs,
         stream_oculus,
         endeff_publish_port,
-        endeff_pos_subscribe_port,
-        robot_pose_subscribe_port,
+        endeffpossubscribeport,
+        robotposesubscribeport,
         moving_average_limit,
         arm_resolution_port=None,
     ):
@@ -57,7 +57,7 @@ class MetaworldSimOperator(Operator):
         )
 
         self.end_eff_position_subscriber = ZMQKeypointSubscriber(
-            host=host, port=endeff_pos_subscribe_port, topic="endeff_coords"
+            host=host, port=endeffpossubscribeport, topic="endeff_coords"
         )
 
         self.end_eff_position_publisher = ZMQKeypointPublisher(
@@ -65,7 +65,7 @@ class MetaworldSimOperator(Operator):
         )
 
         self.robot_pose_subscriber = ZMQKeypointSubscriber(
-            host=host, port=robot_pose_subscribe_port, topic="robot_pose"
+            host=host, port=robotposesubscribeport, topic="robot_pose"
         )
 
         # Calibration
@@ -190,7 +190,7 @@ class MetaworldSimOperator(Operator):
         # Just updates the beginning position of the arm
         print("****** RESETTING TELEOP ****** ")
         self.robot_frame = self.end_eff_position_subscriber.recv_keypoints()
-        self.robot_init_H = self.cart2homo(self.robot_frame[2:])
+        self.robot_init_H = self.cart2homo(self.robot_frame[1:])
         self.robot_moving_H = copy(self.robot_init_H)
 
         first_hand_frame = self._get_hand_frame()
@@ -339,7 +339,7 @@ class MetaworldSimOperator(Operator):
         rel_axis_angle = rel_axis_angle * 5.0
 
         self.robot_moving_H = copy(H_RT_RH)
-        action = np.concatenate([rel_pos, [gripper_state]])
+        action = np.concatenate([rel_pos, rel_axis_angle, [gripper_state]])
 
         averaged_action = moving_average(
             action,
