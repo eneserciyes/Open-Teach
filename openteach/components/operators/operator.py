@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from openteach.components import Component
-import numpy as np
+
 
 class Operator(Component, ABC):
     @property
@@ -19,45 +19,46 @@ class Operator(Component, ABC):
     @abstractmethod
     def transformed_hand_keypoint_subscriber(self):
         return self._transformed_hand_keypoint_subscriber
-    
-    #This function is the subscriber for the arm keypoints
+
+    # This function is the subscriber for the arm keypoints
     @property
     @abstractmethod
     def transformed_arm_keypoint_subscriber(self):
         return self._transformed_arm_keypoint_subscriber
 
-    #This function has the majority of retargeting code happening
+    # This function has the majority of retargeting code happening
     @abstractmethod
     def _apply_retargeted_angles(self):
         pass
 
-    #This function applies the retargeted angles to the robot
+    # This function applies the retargeted angles to the robot
     def stream(self):
-        self.notify_component_start('{} control'.format(self.robot))
+        self.notify_component_start("{} control".format(self.robot))
         print("Start controlling the robot hand using the Oculus Headset.\n")
 
         while True:
             # try:
-                if self.return_real() is True:
-                    if self.robot.get_joint_position() is not None:
-                        #print("######")
-                        self.timer.start_loop()
-                        
-                        # Retargeting function
-                        self._apply_retargeted_angles()
-
-                        self.timer.end_loop()
-                else:
+            if self.return_real() is True:
+                if self.robot.get_joint_position() is not None:
+                    # print("######")
                     self.timer.start_loop()
-                    
+
                     # Retargeting function
                     self._apply_retargeted_angles()
 
                     self.timer.end_loop()
+            else:
+                self.timer.start_loop()
 
-            # except KeyboardInterrupt:
-            #     break
-        
+                # Retargeting function
+                self._apply_retargeted_angles()
+
+                self.timer.end_loop()
+
+        # except KeyboardInterrupt:
+        #     break
+
         self.transformed_arm_keypoint_subscriber.stop()
         self.transformed_hand_keypoint_subscriber.stop()
-        print('Stopping the teleoperator!')
+        print("Stopping the teleoperator!")
+

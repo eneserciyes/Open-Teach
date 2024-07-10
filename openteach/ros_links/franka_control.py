@@ -1,13 +1,15 @@
 import numpy as np
 import time
-
-from franka_arm.controller import FrankaController
+import os
 from copy import deepcopy as copy
+from pathlib import Path
 
 from deoxys.utils import transform_utils
+from deoxys.franka_interface import FrankaInterface
 
-from franka_arm.constants import *
-from franka_arm.utils import generate_cartesian_space_min_jerk
+# from franka_arm.constants import *
+# from franka_arm.controller import FrankaController
+# from franka_arm.utils import generate_cartesian_space_min_jerk
 
 FRANKA_HOME = [
     -1.5208185,
@@ -18,21 +20,41 @@ FRANKA_HOME = [
     1.8809032,
     0.67484516,
 ]
+CONFIG_ROOT = Path(__file__).parent
+CONTROL_FREQ = 60
+STATE_FREQ = 200
+
+
+class Robot(FrankaInterface):
+    def __init__(self, cfg):
+        super(Robot, self).__init__(
+            general_cfg_file=os.path.join(CONFIG_ROOT, cfg),
+            control_freq=CONTROL_FREQ,
+            state_freq=STATE_FREQ,
+            use_visualizer=False,
+        )
+
+    def get_position_aa(self):
+        # TODO: implement this
+        pass
 
 
 class DexArmControl:
-    def __init__(self, record_type=None, robot_type="franka"):
-        self._init_franka_arm_control(record_type)
+    def __init__(self):
+        self.robot = Robot("deoxys.yml")
+        self.desired_cartesian_pose = None
 
-    def _init_franka_arm_control(self, record_type=None):
-        self.robot = FrankaController(record_type)
+    def _init_franka_arm_control(self):
+        self.robot.reset()
+
+        while self.robot.state_buffer_size == 0:
+            time.sleep(0.01)  # wait until buffer fills
 
     def get_arm_pose(self):
-        return self.robot.get_pose()
+        return self.robot.last_eef_pose
 
     def get_arm_position(self):
-        joint_state = self.robot.get_joint_position()
-        return joint_state
+        return self.robot.last_q
 
     def get_arm_velocity(self):
         raise ValueError(
@@ -80,57 +102,12 @@ class DexArmControl:
         return joint_positions
 
     # Movement functions
-    def move_hand(self, allegro_angles):
-        self.allegro.hand_pose(allegro_angles)
-
-    def reset_hand(self):
-        self.home_hand()
 
     def move_arm_joint(self, joint_angles):
         self.franka.joint_movement(joint_angles)
-
-    def move_arm_cartesian(self, cartesian_pos, duration=3):
-        # Moving
-        start_pose = self.get_arm_cartesian_coords()
-        poses = generate_cartesian_space_min_jerk(
-            start=start_pose,
-            goal=cartesian_pos,
-            time_to_go=duration,
-            hz=self.franka.control_freq,
-        )
-
-        for pose in poses:
-            self.arm_control(pose)
-
-        # Debugging the pose difference
-        last_pose = self.get_arm_cartesian_coords()
-        pose_error = cartesian_pos - last_pose
-        debug_quat_diff = transform_utils.quat_multiply(
-            last_pose[3:], transform_utils.quat_inverse(cartesian_pos[3:])
-        )
-        angle_diff = (
-            180
-            * np.linalg.norm(transform_utils.quat2axisangle(debug_quat_diff))
-            / np.pi
-        )
-        print(
-            "Absolute Pose Error: {}, Angle Difference: {}".format(
-                np.abs(pose_error[:3]), angle_diff
-            )
-        )
 
     def arm_control(self, cartesian_pose):
         self.franka.cartesian_control(cartesian_pose=cartesian_pose)
 
     def home_arm(self):
         self.move_arm_cartesian(FRANKA_HOME_CART, duration=5)
-
-    def reset_arm(self):
-        self.home_arm()
-
-    # Full robot commands
-    def move_robot(self, arm_angles):
-        self.robot.joint_movement(arm_angles)
-
-    def home_robot(self):
-        self.home_arm()  # For now we're using cartesian values

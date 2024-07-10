@@ -6,8 +6,8 @@ import time
 
 
 class FrankaArm(RobotWrapper):
-    def __init__(self, record_type=None):
-        self._controller = DexArmControl(record_type=record_type)
+    def __init__(self):
+        self._controller = DexArmControl()
         self._data_frequency = 50
 
     @property
@@ -81,7 +81,9 @@ class FrankaArm(RobotWrapper):
         pass
 
     def set_gripper_state(self, gripper_state):
-        self._controller.set_gripper_status(gripper_state)
+        self._controller.set_gripper_status(
+            gripper_state
+        )  # TODO: set gripper status impl
 
     def get_gripper_state_from_socket(self):
         self._gripper_state_subscriber = ZMQKeypointSubscriber(
