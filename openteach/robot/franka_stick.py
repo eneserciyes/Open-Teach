@@ -1,15 +1,14 @@
-from openteach.ros_links.bimanual import DexArmControl
+from openteach.ros_links.franka_control import DexArmControl
 from .robot import RobotWrapper
 from openteach.utils.network import ZMQKeypointSubscriber
 import numpy as np
 import time
 
 
-class XArm(RobotWrapper):
-    def __init__(self, ip, host_address, record_type=None):
-        self._controller = DexArmControl(ip=ip, record_type=record_type)
-        self.host_address = host_address
-        self._data_frequency = 90
+class FrankaArm(RobotWrapper):
+    def __init__(self, record_type=None):
+        self._controller = DexArmControl(record_type=record_type)
+        self._data_frequency = 50
 
     @property
     def recorder_functions(self):
@@ -25,7 +24,7 @@ class XArm(RobotWrapper):
 
     @property
     def name(self):
-        return "xarm"
+        return "franka"
 
     @property
     def data_frequency(self):
@@ -42,14 +41,7 @@ class XArm(RobotWrapper):
         pass
 
     def get_cartesian_state(self):
-        status, current_pos = self._controller.robot.get_position_aa()
-        cartesian_state = dict(
-            position=np.array(current_pos[0:3], dtype=np.float32).flatten(),
-            orientation=np.array(current_pos[3:], dtype=np.float32).flatten(),
-            timestamp=time.time(),
-        )
-
-        return cartesian_state
+        return self._controller.get_arm_cartesian_state()
 
     def get_joint_position(self):
         return self._controller.get_arm_position()
@@ -57,11 +49,14 @@ class XArm(RobotWrapper):
     def get_cartesian_position(self):
         return self._controller.get_arm_cartesian_coords()
 
-    def reset(self):
-        return self._controller._init_xarm_control()
+    def get_osc_position(self):
+        return self._controller.get_arm_osc_position()
 
     def get_pose(self):
         return self._controller.get_arm_pose()
+
+    def reset(self):
+        return self._controller._init_franka_arm_control()
 
     # Movement functions
     def home(self):
@@ -148,4 +143,3 @@ class XArm(RobotWrapper):
     def get_gripper_state(self):
         gripper_state_dict = self._controller.get_gripper_state()
         return gripper_state_dict
-
