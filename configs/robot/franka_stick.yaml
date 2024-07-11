@@ -9,7 +9,7 @@ detector:
 # Operators used to retarget the keypoints
 operators:
   - 
-    _target_: openteach.components.operators.xarm_stick.XArmOperator
+    _target_: openteach.components.operators.franka_stick.FrankaOperator
     host: ${host_address}
     controller_state_port: ${transformed_position_keypoint_port}
     gripper_port: ${gripper_publish_port_right}
@@ -20,10 +20,7 @@ operators:
 # List of controller classes used
 controllers: 
   -
-    _target_: openteach.robot.xarm_stick.XArm
-    ip: ${right_xarm_ip}
-    host_address: ${host_address}
-    # record: False
+    _target_: openteach.robot.franka_stick.FrankaArm
 
 # Information to be recorded for the robot 
 recorded_data:

@@ -114,8 +114,12 @@ class FrankaOperator(Operator):
         rotation = R.from_matrix(affine[:3, :3]).as_rotvec()
         return np.concatenate([translation, rotation])
 
+    def return_real(self):
+        return False
+
     def _apply_retargeted_angles(self) -> None:
         self.controller_state = self._controller_state_subscriber.recv_keypoints()
+        print("controller_state:", self.controller_state)
 
         if self.is_first_frame:
             self._robot.home()
@@ -187,4 +191,4 @@ class FrankaOperator(Operator):
         # TODO:
 
         if self.start_teleop:
-            self.robot.arm_control(des_pose)
+            self._robot.arm_control(des_pose)

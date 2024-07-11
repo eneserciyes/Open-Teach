@@ -4,7 +4,6 @@ import os
 from copy import deepcopy as copy
 from pathlib import Path
 
-from deoxys.utils import transform_utils
 from deoxys.franka_interface import FrankaInterface
 
 # from franka_arm.constants import *
@@ -21,16 +20,12 @@ FRANKA_HOME = [
     0.67484516,
 ]
 CONFIG_ROOT = Path(__file__).parent
-CONTROL_FREQ = 60
-STATE_FREQ = 200
 
 
 class Robot(FrankaInterface):
     def __init__(self, cfg):
         super(Robot, self).__init__(
             general_cfg_file=os.path.join(CONFIG_ROOT, cfg),
-            control_freq=CONTROL_FREQ,
-            state_freq=STATE_FREQ,
             use_visualizer=False,
         )
 
@@ -44,11 +39,16 @@ class DexArmControl:
         self.robot = Robot("deoxys.yml")
         self.desired_cartesian_pose = None
 
-    def _init_franka_arm_control(self):
+    def init_franka_arm_control(self):
         self.robot.reset()
 
-        while self.robot.state_buffer_size == 0:
-            time.sleep(0.01)  # wait until buffer fills
+        # TODO: uncommment this back, or maybe we don't
+        # need this because the control doesn't start
+        # until the joint pose is not None.
+
+        # while self.robot.state_buffer_size == 0:
+        #     time.sleep(0.1)  # wait until buffer fills
+        #     print("Warning: robot state buffer size 0")
 
     def get_arm_pose(self):
         return self.robot.last_eef_pose
@@ -110,4 +110,6 @@ class DexArmControl:
         self.franka.cartesian_control(cartesian_pose=cartesian_pose)
 
     def home_arm(self):
-        self.move_arm_cartesian(FRANKA_HOME_CART, duration=5)
+        # TODO: add move_arm_cartesian or somethign like this.
+        # take this from Deoxys reset_robot_joints.py
+        pass

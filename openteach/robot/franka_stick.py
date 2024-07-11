@@ -10,6 +10,8 @@ class FrankaArm(RobotWrapper):
         self._controller = DexArmControl()
         self._data_frequency = 50
 
+        self._controller.init_franka_arm_control()
+
     @property
     def recorder_functions(self):
         return {
@@ -56,7 +58,7 @@ class FrankaArm(RobotWrapper):
         return self._controller.get_arm_pose()
 
     def reset(self):
-        return self._controller._init_franka_arm_control()
+        return self._controller.init_franka_arm_control()
 
     # Movement functions
     def home(self):

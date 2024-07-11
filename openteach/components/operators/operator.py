@@ -1,33 +1,28 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 from openteach.components import Component
 
 
 class Operator(Component, ABC):
     @property
-    @abstractmethod
     def timer(self):
         return self._timer
 
     # This function is used to create the robot
     @property
-    @abstractmethod
     def robot(self):
         return self._robot
 
     # This function is the subscriber for the hand keypoints
     @property
-    @abstractmethod
     def transformed_hand_keypoint_subscriber(self):
         return self._transformed_hand_keypoint_subscriber
 
     # This function is the subscriber for the arm keypoints
     @property
-    @abstractmethod
     def transformed_arm_keypoint_subscriber(self):
         return self._transformed_arm_keypoint_subscriber
 
     # This function has the majority of retargeting code happening
-    @abstractmethod
     def _apply_retargeted_angles(self):
         pass
 
