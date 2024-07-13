@@ -1,3 +1,4 @@
+from deoxys.utils.config_utils import get_default_controller_config
 import numpy as np
 import time
 import os
@@ -28,10 +29,17 @@ class Robot(FrankaInterface):
             general_cfg_file=os.path.join(CONFIG_ROOT, cfg),
             use_visualizer=False,
         )
+        self.controller_cfg = get_default_controller_config("OSC_POSE")
 
-    def get_position_aa(self):
-        # TODO: implement this
-        pass
+    def arm_control(self, action):
+        """
+        Action: nd.array  -- [x, y, z, roll, yaw, pitch, gripper]
+        """
+        super().control(
+            controller_type="OSC_POSE",
+            action=action,
+            controller_cfg=self.controller_cfg,
+        )
 
 
 class DexArmControl:
@@ -46,9 +54,9 @@ class DexArmControl:
         # need this because the control doesn't start
         # until the joint pose is not None.
 
-        # while self.robot.state_buffer_size == 0:
-        #     time.sleep(0.1)  # wait until buffer fills
-        #     print("Warning: robot state buffer size 0")
+        while self.robot.state_buffer_size == 0:
+            print("Warning: robot state buffer size 0")
+            time.sleep(0.1)  # wait until buffer fills
 
     def get_arm_pose(self):
         return self.robot.last_eef_pose
@@ -106,8 +114,10 @@ class DexArmControl:
     def move_arm_joint(self, joint_angles):
         self.franka.joint_movement(joint_angles)
 
-    def arm_control(self, cartesian_pose):
-        self.franka.cartesian_control(cartesian_pose=cartesian_pose)
+    def arm_control(self, action):
+        # TODO: reactivate
+        pass
+        # self.robot.arm_control(action)
 
     def home_arm(self):
         # TODO: add move_arm_cartesian or somethign like this.

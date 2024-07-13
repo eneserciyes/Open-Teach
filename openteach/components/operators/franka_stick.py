@@ -11,6 +11,7 @@ from openteach.constants import (
     GRIPPER_CLOSE,
     GRIPPER_OPEN,
     ROBOT_WORKSPACE,
+    SCALE_FACTOR,
     VR_FREQ,
     H_R_V_star,
     H_R_V,
@@ -67,7 +68,7 @@ class FrankaOperator(Operator):
         self._transformed_hand_keypoint_subscriber = None
 
         self._robot = FrankaArm()
-        self.robot.reset()
+        self._robot.reset()
 
         # Gripper and cartesian publisher
         self.gripper_publisher = ZMQKeypointPublisher(host=host, port=gripper_port)
@@ -110,31 +111,32 @@ class FrankaOperator(Operator):
             list: [x, y, z, ax, ay, az] where (x, y, z) is the position and (ax, ay, az) is the axis-angle rotation.
             x, y, z are in mm and ax, ay, az are in radians.
         """
-        translation = affine[:3, 3]  # TODO: check if we need SCALE_FACTOR
+        translation = affine[:3, 3]
         rotation = R.from_matrix(affine[:3, :3]).as_rotvec()
         return np.concatenate([translation, rotation])
 
     def return_real(self):
-        return False
+        return True
 
     def _apply_retargeted_angles(self) -> None:
         self.controller_state = self._controller_state_subscriber.recv_keypoints()
-        print("controller_state:", self.controller_state)
 
         if self.is_first_frame:
+            print("Starting control first frame")
             self._robot.home()
             time.sleep(2)
-            self.home_pose = self._robot._controller.robot.get_position_aa()
             self.home_affine = self._robot.get_pose()
+            self.home_pose = self.affine_to_robot_pose_aa(self.home_affine)
             self.is_first_frame = False
         if self.controller_state.right_a:
+            print("Start teleop")
             self.start_teleop = True
             self.init_affine = self.controller_state.right_affine
         if self.controller_state.right_b:
             self.start_teleop = False
             self.init_affine = None
-            self.home_pose = self._robot._controller.robot.get_position_aa()
             self.home_affine = self._robot.get_pose()
+            self.home_pose = self.affine_to_robot_pose_aa(self.home_affine)
 
         if self.start_teleop:
             relative_affine = get_relative_affine(
@@ -167,10 +169,9 @@ class FrankaOperator(Operator):
             )
 
             target_pose = self.affine_to_robot_pose_aa(target_affine).tolist()
-            current_pose = self._robot._controller.robot.get_position_aa()
+            current_pose = self.affine_to_robot_pose_aa(self._robot.get_pose()).tolist()
 
             delta_translation = np.array(target_pose[:3] - np.array(current_pose[:3]))
-
             delta_translation = np.clip(
                 delta_translation,
                 a_min=FRANKA_CART_STEP_LIMITS[0],
@@ -186,6 +187,7 @@ class FrankaOperator(Operator):
             des_pose = des_translation + des_rotation
         else:
             des_pose = self.home_pose
+        print("Destination_pose:", des_pose)
 
         # Save the states here
         # TODO:

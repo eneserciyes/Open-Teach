@@ -56,4 +56,3 @@ class Operator(Component, ABC):
         self.transformed_arm_keypoint_subscriber.stop()
         self.transformed_hand_keypoint_subscriber.stop()
         print("Stopping the teleoperator!")
-

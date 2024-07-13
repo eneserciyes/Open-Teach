@@ -131,11 +131,11 @@ H_R_V_star = np.array(  # this is for vention table 230 arm
     [[1, 0, 0, 0], [0, 0, 1, 0], [0, 1, 0, 0], [0, 0, 0, 1]]
 )
 
-# Robot workspace position limits.
-x_min, x_max = 206, 550
-y_min, y_max = -365, 260
-z_min, z_max = 100, 550  # 232, 550
+# Robot workspace position limits in meters
+x_min, x_max = 0, 0.8
+y_min, y_max = -0.4, 0.4
+z_min, z_max = 0.1, 0.7  # 232, 550
 ROBOT_WORKSPACE = np.array([[x_min, y_min, z_min], [x_max, y_max, z_max]])
 ROBOT_SERVO_MODE_STEP_LIMITS = np.array([-2, 2])
 
-FRANKA_CART_STEP_LIMITS = np.array([-0.5, 0.5])  # TODO: find this
+FRANKA_CART_STEP_LIMITS = np.array([-0.05, 0.05])  # TODO: find this
