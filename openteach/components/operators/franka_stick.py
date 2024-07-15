@@ -11,7 +11,6 @@ from openteach.constants import (
     GRIPPER_CLOSE,
     GRIPPER_OPEN,
     ROBOT_WORKSPACE,
-    SCALE_FACTOR,
     VR_FREQ,
     H_R_V_star,
     H_R_V,

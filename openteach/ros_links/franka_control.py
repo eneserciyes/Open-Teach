@@ -7,6 +7,7 @@ from copy import deepcopy as copy
 from pathlib import Path
 
 from deoxys.franka_interface import FrankaInterface
+from deoxys.utils import transform_utils
 
 # from franka_arm.constants import *
 # from franka_arm.controller import FrankaController
@@ -45,6 +46,92 @@ class Robot(FrankaInterface):
             controller_cfg=self.controller_cfg,
         )
 
+    def move_to_target_pose(
+        self,
+        controller_type,
+        controller_cfg,
+        target_delta_pose,
+        num_steps,
+        num_additional_steps,
+    ):
+        # while robot_interface.state_buffer_size == 0:
+        #     logger.warn("Robot state not received")
+        #     time.sleep(0.5)
+
+        target_delta_pos, target_delta_axis_angle = (
+            target_delta_pose[:3],
+            target_delta_pose[3:],
+        )
+        current_ee_pose = self.last_eef_pose
+        current_pos = current_ee_pose[:3, 3:]
+        current_rot = current_ee_pose[:3, :3]
+        current_quat = transform_utils.mat2quat(current_rot)
+        current_axis_angle = transform_utils.quat2axisangle(current_quat)
+
+        target_pos = np.array(target_delta_pos).reshape(3, 1) + current_pos
+
+        target_axis_angle = np.array(target_delta_axis_angle) + current_axis_angle
+
+        # logger.info(f"Before conversion {target_axis_angle}")
+        target_quat = transform_utils.axisangle2quat(target_axis_angle)
+        # target_pose = target_pos.flatten().tolist() + target_quat.flatten().tolist()
+
+        if np.dot(target_quat, current_quat) < 0.0:
+            current_quat = -current_quat
+        target_axis_angle = transform_utils.quat2axisangle(target_quat)
+        # logger.info(f"After conversion {target_axis_angle}")
+        current_axis_angle = transform_utils.quat2axisangle(current_quat)
+
+        # start_pose = current_pos.flatten().tolist() + current_quat.flatten().tolist()
+
+        self.osc_move(
+            controller_type,
+            controller_cfg,
+            (target_pos, target_quat),
+            num_steps,
+        )
+        self.osc_move(
+            controller_type,
+            controller_cfg,
+            (target_pos, target_quat),
+            num_additional_steps,
+        )
+
+    def osc_move(self, controller_type, controller_cfg, target_pose, num_steps):
+        target_pos, target_quat = target_pose
+        # target_axis_angle = transform_utils.quat2axisangle(target_quat)
+        current_rot, current_pos = self.last_eef_rot_and_pos
+
+        for _ in range(num_steps):
+            current_pose = self.last_eef_pose
+            current_pos = current_pose[:3, 3:]
+            current_rot = current_pose[:3, :3]
+            current_quat = transform_utils.mat2quat(current_rot)
+            if np.dot(target_quat, current_quat) < 0.0:
+                current_quat = -current_quat
+            quat_diff = transform_utils.quat_distance(target_quat, current_quat)
+            current_axis_angle = transform_utils.quat2axisangle(current_quat)
+            axis_angle_diff = transform_utils.quat2axisangle(quat_diff)
+            action_pos = (target_pos - current_pos).flatten() * 10
+            action_axis_angle = axis_angle_diff.flatten() * 1
+            action_pos = np.clip(action_pos, -1.0, 1.0)
+            action_axis_angle = np.clip(action_axis_angle, -0.5, 0.5)
+
+            action = action_pos.tolist() + action_axis_angle.tolist() + [-1.0]
+            # logger.info(f"Action {action}")
+            print(
+                "Current pos:",
+                np.round(current_pos, 2).tolist()
+                + np.round(current_axis_angle, 2).tolist(),
+            )
+            print("Action:", np.round(action, 2))
+            self.control(
+                controller_type=controller_type,
+                action=action,
+                controller_cfg=controller_cfg,
+            )
+        return action
+
 
 class DexArmControl:
     def __init__(self):
@@ -53,10 +140,6 @@ class DexArmControl:
 
     def init_franka_arm_control(self):
         self.robot.reset()
-
-        # TODO: uncommment this back, or maybe we don't
-        # need this because the control doesn't start
-        # until the joint pose is not None.
 
         while self.robot.state_buffer_size == 0:
             print("Warning: robot state buffer size 0")
