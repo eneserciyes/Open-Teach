@@ -138,4 +138,4 @@ z_min, z_max = 0.1, 0.7  # 232, 550
 ROBOT_WORKSPACE = np.array([[x_min, y_min, z_min], [x_max, y_max, z_max]])
 ROBOT_SERVO_MODE_STEP_LIMITS = np.array([-2, 2])
 
-FRANKA_CART_STEP_LIMITS = np.array([-0.05, 0.05])  # TODO: find this
+FRANKA_CART_STEP_LIMITS = np.array([-0.005, 0.005])  # TODO: find this

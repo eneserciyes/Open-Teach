@@ -1,3 +1,4 @@
+from deoxys.utils import YamlConfig
 from deoxys.utils.config_utils import get_default_controller_config
 import numpy as np
 import time
@@ -29,13 +30,16 @@ class Robot(FrankaInterface):
             general_cfg_file=os.path.join(CONFIG_ROOT, cfg),
             use_visualizer=False,
         )
-        self.controller_cfg = get_default_controller_config("OSC_POSE")
+        self.controller_cfg = YamlConfig(
+            os.path.join(CONFIG_ROOT, "osc-pose-controller.yml")
+        ).as_easydict()
 
     def arm_control(self, action):
         """
         Action: nd.array  -- [x, y, z, roll, yaw, pitch, gripper]
         """
-        super().control(
+        print(f"{action=}")
+        self.control(
             controller_type="OSC_POSE",
             action=action,
             controller_cfg=self.controller_cfg,
@@ -116,8 +120,8 @@ class DexArmControl:
 
     def arm_control(self, action):
         # TODO: reactivate
-        pass
-        # self.robot.arm_control(action)
+        # pass
+        self.robot.arm_control(action)
 
     def home_arm(self):
         # TODO: add move_arm_cartesian or somethign like this.

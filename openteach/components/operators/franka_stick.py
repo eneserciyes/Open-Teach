@@ -187,7 +187,7 @@ class FrankaOperator(Operator):
             des_pose = des_translation + des_rotation
         else:
             des_pose = self.home_pose
-        print("Destination_pose:", des_pose)
+        # print("Destination_pose:", des_pose)
 
         # Save the states here
         # TODO:
