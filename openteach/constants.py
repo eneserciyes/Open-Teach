@@ -125,7 +125,7 @@ VR_CONTROLLER_TOPIC = b"oculus_controller"
 
 # TODO: change these correctly
 H_R_V = np.array(  # this is for vention table 230 arm
-    [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    [[1, 0, 0, 0], [0, 0, -1, 0], [0, -1, 0, 0], [0, 0, 0, 1]]
 )
 H_R_V_star = np.array(  # this is for Vention Franka setup
     [[-1, 0, 0, 0], [0, 0, 1, 0], [0, -1, 0, 0], [0, 0, 0, 1]]

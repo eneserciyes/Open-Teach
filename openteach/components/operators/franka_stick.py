@@ -60,12 +60,6 @@ class Robot(FrankaInterface):
 
             action = action_pos.tolist() + action_axis_angle.tolist() + [-1.0]
             # logger.info(f"Action {action}")
-            print(
-                "Current pos:",
-                np.round(current_pos, 2).tolist()
-                + np.round(current_axis_angle, 2).tolist(),
-            )
-            print("Action:", np.round(action, 2))
             self.control(
                 controller_type=controller_type,
                 action=action,
@@ -226,7 +220,10 @@ class FrankaOperator(Operator):
             self.gripper_correct_state = gripper_state
         if self.start_teleop:
             relative_pos, relative_rot = mat2posrot(relative_affine)
-            print("Relative pos:", relative_pos)
+            print(
+                "Relative axis-angle:",
+                transform_utils.quat2axisangle(transform_utils.mat2quat(relative_rot)),
+            )
 
             target_pos = self.home_pos + relative_pos
             target_rot = self.home_rot @ relative_rot
@@ -234,7 +231,6 @@ class FrankaOperator(Operator):
 
             # clip with step limits and workspace limits
             _, current_pos = self._robot.last_eef_rot_and_pos
-            print("Target pos before clipping:", target_pos)
             target_pos = np.clip(
                 np.clip(
                     target_pos,
@@ -245,16 +241,12 @@ class FrankaOperator(Operator):
                 a_max=ROBOT_WORKSPACE_MAX,
             )
 
-            # TODO: remove this
-            target_quat = transform_utils.mat2quat(self.home_rot)
-
         else:
             target_pos, target_quat = (
                 self.home_pos,
                 transform_utils.mat2quat(self.home_rot),
             )
 
-        print("Target pos:", target_pos)
         print("Target axis-angle:", transform_utils.quat2axisangle(target_quat))
 
         # Save the states here
