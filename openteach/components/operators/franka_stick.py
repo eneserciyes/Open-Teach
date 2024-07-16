@@ -1,10 +1,10 @@
 import time
 from pathlib import Path
 import os
+from typing import Union
 
 import numpy as np
 from numpy.linalg import pinv
-from scipy.spatial.transform import Rotation as R
 
 from openteach.components.operators.operator import Operator
 from openteach.constants import (
@@ -17,6 +17,7 @@ from openteach.constants import (
     VR_FREQ,
     H_R_V_star,
     H_R_V,
+    FRANKA_HOME_JOINTS,
 )
 from openteach.utils.network import ZMQKeypointSubscriber, ZMQKeypointPublisher
 from openteach.utils.timer import FrequencyTimer
@@ -24,6 +25,11 @@ from openteach.utils.timer import FrequencyTimer
 from deoxys.utils import YamlConfig
 from deoxys.franka_interface import FrankaInterface
 from deoxys.utils import transform_utils
+from deoxys.utils.config_utils import (
+    get_default_controller_config,
+    verify_controller_config,
+)
+
 
 CONFIG_ROOT = Path(__file__).parent
 
@@ -51,7 +57,7 @@ class Robot(FrankaInterface):
             if np.dot(target_quat, current_quat) < 0.0:
                 current_quat = -current_quat
             quat_diff = transform_utils.quat_distance(target_quat, current_quat)
-            current_axis_angle = transform_utils.quat2axisangle(current_quat)
+            # current_axis_angle = transform_utils.quat2axisangle(current_quat)
             axis_angle_diff = transform_utils.quat2axisangle(quat_diff)
             action_pos = (target_pos - current_pos).flatten() * 10
             action_axis_angle = axis_angle_diff.flatten() * 1
@@ -67,12 +73,55 @@ class Robot(FrankaInterface):
             )
         return action
 
+    def reset_joints_to(
+        self,
+        start_joint_pos: Union[list, np.ndarray],
+        controller_cfg: dict = None,
+        timeout=7,
+        gripper_open=False,
+    ):
+        assert type(start_joint_pos) is list or type(start_joint_pos) is np.ndarray
+        if controller_cfg is None:
+            controller_cfg = get_default_controller_config(
+                controller_type="JOINT_POSITION"
+            )
+        else:
+            assert controller_cfg["controller_type"] == "JOINT_POSITION", (
+                "This function is only for JOINT POSITION mode. You specified "
+                + controller_cfg["controller_type"]
+            )
+            controller_cfg = verify_controller_config(controller_cfg)
+
+        if gripper_open:
+            gripper_action = -1
+        else:
+            gripper_action = 1
+        if type(start_joint_pos) is list:
+            action = start_joint_pos + [gripper_action]
+        else:
+            action = start_joint_pos.tolist() + [gripper_action]
+        start_time = time.time()
+        while True:
+            if self.received_states and self.check_nonzero_configuration():
+                if (
+                    np.max(np.abs(np.array(self.last_q) - np.array(start_joint_pos)))
+                    < 1e-3
+                ):
+                    break
+            self.control(
+                controller_type="JOINT_POSITION",
+                action=action,
+                controller_cfg=controller_cfg,
+            )
+            end_time = time.time()
+
+            # Add timeout
+            if end_time - start_time > timeout:
+                break
+        return True
+
     def get_joint_position(self):
         return self.last_q
-
-    def home(self):
-        # TODO: reset_robot_joints.py
-        pass
 
 
 def get_relative_affine(init_affine, current_affine):
@@ -98,18 +147,6 @@ def get_relative_affine(init_affine, current_affine):
     )
 
     return relative_affine
-
-
-def mat2posaa(mat):
-    pos = mat[:3, 3]
-    rot = mat[:3, :3]
-    quat = transform_utils.mat2quat(rot)
-    aa = transform_utils.quat2axisangle(quat)
-    return pos, aa
-
-
-def mat2posrot(mat):
-    return mat[:3, 3:], mat[:3, :3]
 
 
 class FrankaOperator(Operator):
@@ -168,18 +205,6 @@ class FrankaOperator(Operator):
         self.start_teleop = False
         self.init_affine = None
 
-    def affine_to_robot_pose_aa(self, affine: np.ndarray) -> np.ndarray:
-        """Converts an affine matrix to a robot pose in axis-angle format.
-        Args:
-            affine (np.ndarray): 4x4 affine matrix [[R, t],[0, 1]]
-        Returns:
-            list: [x, y, z, ax, ay, az] where (x, y, z) is the position and (ax, ay, az) is the axis-angle rotation.
-            x, y, z are in mm and ax, ay, az are in radians.
-        """
-        translation = affine[:3, 3]
-        rotation = R.from_matrix(affine[:3, :3]).as_rotvec()
-        return np.concatenate([translation, rotation])
-
     def return_real(self):
         return True
 
@@ -188,7 +213,7 @@ class FrankaOperator(Operator):
 
         if self.is_first_frame:
             print("Starting control first frame")
-            self._robot.home()
+            self._robot.reset_joints_to(FRANKA_HOME_JOINTS)
             time.sleep(2)
             self.home_rot, self.home_pos = self._robot.last_eef_rot_and_pos
             self.is_first_frame = False
@@ -219,7 +244,10 @@ class FrankaOperator(Operator):
             self._robot.gripper_control(gripper_state)
             self.gripper_correct_state = gripper_state
         if self.start_teleop:
-            relative_pos, relative_rot = mat2posrot(relative_affine)
+            relative_pos, relative_rot = (
+                relative_affine[:3, 3:],
+                relative_affine[:3, :3],
+            )
             print(
                 "Relative axis-angle:",
                 transform_utils.quat2axisangle(transform_utils.mat2quat(relative_rot)),
@@ -252,5 +280,4 @@ class FrankaOperator(Operator):
         # Save the states here
         # TODO:
 
-        # if self.start_teleop:
         self._robot.osc_move("OSC_POSE", (target_pos, target_quat), num_steps=1)
