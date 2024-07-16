@@ -44,7 +44,7 @@ class Robot(FrankaInterface):
             os.path.join(CONFIG_ROOT, "osc-pose-controller.yml")
         ).as_easydict()
 
-    def osc_move(self, controller_type, target_pose, num_steps):
+    def osc_move(self, controller_type, target_pose, gripper_state, num_steps):
         target_pos, target_quat = target_pose
         # target_axis_angle = transform_utils.quat2axisangle(target_quat)
         current_rot, current_pos = self.last_eef_rot_and_pos
@@ -64,7 +64,7 @@ class Robot(FrankaInterface):
             action_pos = np.clip(action_pos, -1.0, 1.0)
             action_axis_angle = np.clip(action_axis_angle, -0.5, 0.5)
 
-            action = action_pos.tolist() + action_axis_angle.tolist() + [-1.0]
+            action = action_pos.tolist() + action_axis_angle.tolist() + [gripper_state]
             # logger.info(f"Action {action}")
             self.control(
                 controller_type=controller_type,
@@ -197,7 +197,7 @@ class FrankaOperator(Operator):
         self.prev_gripper_flag = 0
         self.prev_pause_flag = 0
         self.pause_cnt = 0
-        self.gripper_correct_state = GRIPPER_OPEN
+        self.gripper_state = GRIPPER_OPEN
         self.gripper_flag = 1
         self.pause_flag = 1
         self.gripper_cnt = 0
@@ -234,23 +234,20 @@ class FrankaOperator(Operator):
             relative_affine = np.zeros((4, 4))
             relative_affine[3, 3] = 1
 
-        gripper_state = None
-
+        gripper_action = None
         if self.controller_state.right_index_trigger > 0.5:
-            gripper_state = GRIPPER_CLOSE
+            gripper_action = GRIPPER_CLOSE
         elif self.controller_state.right_hand_trigger > 0.5:
-            gripper_state = GRIPPER_OPEN
-        if gripper_state is not None and gripper_state != self.gripper_correct_state:
-            self._robot.gripper_control(gripper_state)
-            self.gripper_correct_state = gripper_state
+            gripper_action = GRIPPER_OPEN
+
+        if gripper_action is not None and gripper_action != self.gripper_state:
+            print("Gripper controlling: ", gripper_action)
+            self.gripper_state = gripper_action
+
         if self.start_teleop:
             relative_pos, relative_rot = (
                 relative_affine[:3, 3:],
                 relative_affine[:3, :3],
-            )
-            print(
-                "Relative axis-angle:",
-                transform_utils.quat2axisangle(transform_utils.mat2quat(relative_rot)),
             )
 
             target_pos = self.home_pos + relative_pos
@@ -269,15 +266,22 @@ class FrankaOperator(Operator):
                 a_max=ROBOT_WORKSPACE_MAX,
             )
 
+            # TODO: remove this
+            target_quat = transform_utils.mat2quat(self.home_rot)
         else:
             target_pos, target_quat = (
                 self.home_pos,
                 transform_utils.mat2quat(self.home_rot),
             )
 
-        print("Target axis-angle:", transform_utils.quat2axisangle(target_quat))
+        # print("Target axis-angle:", transform_utils.quat2axisangle(target_quat))
 
         # Save the states here
         # TODO:
 
-        self._robot.osc_move("OSC_POSE", (target_pos, target_quat), num_steps=1)
+        self._robot.osc_move(
+            "OSC_POSE",
+            (target_pos, target_quat),
+            self.gripper_state,
+            num_steps=1,
+        )
