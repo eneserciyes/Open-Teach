@@ -38,65 +38,6 @@ class Robot(FrankaInterface):
             os.path.join(CONFIG_ROOT, "osc-pose-controller.yml")
         ).as_easydict()
 
-    def arm_control(self, action):
-        """
-        Action: nd.array  -- [x, y, z, roll, yaw, pitch, gripper]
-        """
-        print(f"{action=}")
-        self.control(
-            controller_type="OSC_POSE",
-            action=action,
-            controller_cfg=self.controller_cfg,
-        )
-
-    def move_to_target_pose(
-        self,
-        controller_type,
-        target_delta_pose,
-        num_steps,
-        num_additional_steps,
-    ):
-        # while robot_interface.state_buffer_size == 0:
-        #     logger.warn("Robot state not received")
-        #     time.sleep(0.5)
-
-        target_delta_pos, target_delta_axis_angle = (
-            target_delta_pose[:3],
-            target_delta_pose[3:],
-        )
-        current_ee_pose = self.last_eef_pose
-        current_pos = current_ee_pose[:3, 3:]
-        current_rot = current_ee_pose[:3, :3]
-        current_quat = transform_utils.mat2quat(current_rot)
-        current_axis_angle = transform_utils.quat2axisangle(current_quat)
-
-        target_pos = np.array(target_delta_pos).reshape(3, 1) + current_pos
-
-        target_axis_angle = np.array(target_delta_axis_angle) + current_axis_angle
-
-        # logger.info(f"Before conversion {target_axis_angle}")
-        target_quat = transform_utils.axisangle2quat(target_axis_angle)
-        # target_pose = target_pos.flatten().tolist() + target_quat.flatten().tolist()
-
-        if np.dot(target_quat, current_quat) < 0.0:
-            current_quat = -current_quat
-        target_axis_angle = transform_utils.quat2axisangle(target_quat)
-        # logger.info(f"After conversion {target_axis_angle}")
-        current_axis_angle = transform_utils.quat2axisangle(current_quat)
-
-        # start_pose = current_pos.flatten().tolist() + current_quat.flatten().tolist()
-
-        self.osc_move(
-            controller_type,
-            (target_pos, target_quat),
-            num_steps,
-        )
-        self.osc_move(
-            controller_type,
-            (target_pos, target_quat),
-            num_additional_steps,
-        )
-
     def osc_move(self, controller_type, target_pose, num_steps):
         target_pos, target_quat = target_pose
         # target_axis_angle = transform_utils.quat2axisangle(target_quat)
@@ -285,6 +226,7 @@ class FrankaOperator(Operator):
             self.gripper_correct_state = gripper_state
         if self.start_teleop:
             relative_pos, relative_rot = mat2posrot(relative_affine)
+            print("Relative pos:", relative_pos)
 
             target_pos = self.home_pos + relative_pos
             target_rot = self.home_rot @ relative_rot
