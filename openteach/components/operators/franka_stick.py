@@ -1,4 +1,6 @@
 import time
+from pathlib import Path
+import os
 
 import numpy as np
 from numpy.linalg import pinv
@@ -18,6 +20,121 @@ from openteach.constants import (
 from openteach.utils.network import ZMQKeypointSubscriber, ZMQKeypointPublisher
 from openteach.robot.franka_stick import FrankaArm
 from openteach.utils.timer import FrequencyTimer
+
+from deoxys.utils import YamlConfig
+from deoxys.franka_interface import FrankaInterface
+from deoxys.utils import transform_utils
+
+CONFIG_ROOT = Path(__file__).parent
+
+
+class Robot(FrankaInterface):
+    def __init__(self, cfg):
+        super(Robot, self).__init__(
+            general_cfg_file=os.path.join(CONFIG_ROOT, cfg),
+            use_visualizer=False,
+        )
+        self.controller_cfg = YamlConfig(
+            os.path.join(CONFIG_ROOT, "osc-pose-controller.yml")
+        ).as_easydict()
+
+    def arm_control(self, action):
+        """
+        Action: nd.array  -- [x, y, z, roll, yaw, pitch, gripper]
+        """
+        print(f"{action=}")
+        self.control(
+            controller_type="OSC_POSE",
+            action=action,
+            controller_cfg=self.controller_cfg,
+        )
+
+    def move_to_target_pose(
+        self,
+        controller_type,
+        target_delta_pose,
+        num_steps,
+        num_additional_steps,
+    ):
+        # while robot_interface.state_buffer_size == 0:
+        #     logger.warn("Robot state not received")
+        #     time.sleep(0.5)
+
+        target_delta_pos, target_delta_axis_angle = (
+            target_delta_pose[:3],
+            target_delta_pose[3:],
+        )
+        current_ee_pose = self.last_eef_pose
+        current_pos = current_ee_pose[:3, 3:]
+        current_rot = current_ee_pose[:3, :3]
+        current_quat = transform_utils.mat2quat(current_rot)
+        current_axis_angle = transform_utils.quat2axisangle(current_quat)
+
+        target_pos = np.array(target_delta_pos).reshape(3, 1) + current_pos
+
+        target_axis_angle = np.array(target_delta_axis_angle) + current_axis_angle
+
+        # logger.info(f"Before conversion {target_axis_angle}")
+        target_quat = transform_utils.axisangle2quat(target_axis_angle)
+        # target_pose = target_pos.flatten().tolist() + target_quat.flatten().tolist()
+
+        if np.dot(target_quat, current_quat) < 0.0:
+            current_quat = -current_quat
+        target_axis_angle = transform_utils.quat2axisangle(target_quat)
+        # logger.info(f"After conversion {target_axis_angle}")
+        current_axis_angle = transform_utils.quat2axisangle(current_quat)
+
+        # start_pose = current_pos.flatten().tolist() + current_quat.flatten().tolist()
+
+        self.osc_move(
+            controller_type,
+            (target_pos, target_quat),
+            num_steps,
+        )
+        self.osc_move(
+            controller_type,
+            (target_pos, target_quat),
+            num_additional_steps,
+        )
+
+    def osc_move(self, controller_type, target_pose, num_steps):
+        target_pos, target_quat = target_pose
+        # target_axis_angle = transform_utils.quat2axisangle(target_quat)
+        current_rot, current_pos = self.last_eef_rot_and_pos
+
+        for _ in range(num_steps):
+            current_pose = self.last_eef_pose
+            current_pos = current_pose[:3, 3:]
+            current_rot = current_pose[:3, :3]
+            current_quat = transform_utils.mat2quat(current_rot)
+            if np.dot(target_quat, current_quat) < 0.0:
+                current_quat = -current_quat
+            quat_diff = transform_utils.quat_distance(target_quat, current_quat)
+            current_axis_angle = transform_utils.quat2axisangle(current_quat)
+            axis_angle_diff = transform_utils.quat2axisangle(quat_diff)
+            action_pos = (target_pos - current_pos).flatten() * 10
+            action_axis_angle = axis_angle_diff.flatten() * 1
+            action_pos = np.clip(action_pos, -1.0, 1.0)
+            action_axis_angle = np.clip(action_axis_angle, -0.5, 0.5)
+
+            action = action_pos.tolist() + action_axis_angle.tolist() + [-1.0]
+            # logger.info(f"Action {action}")
+            print(
+                "Current pos:",
+                np.round(current_pos, 2).tolist()
+                + np.round(current_axis_angle, 2).tolist(),
+            )
+            print("Action:", np.round(action, 2))
+            self.control(
+                controller_type=controller_type,
+                action=action,
+                controller_cfg=self.controller_cfg,
+            )
+        return action
+
+    def home(self):
+        # TODO: reset_robot_joints.py
+        pass
 
 
 def get_relative_affine(init_affine, current_affine):
@@ -66,7 +183,7 @@ class FrankaOperator(Operator):
         self._transformed_arm_keypoint_subscriber = None
         self._transformed_hand_keypoint_subscriber = None
 
-        self._robot = FrankaArm()
+        self._robot = Robot()
         self._robot.reset()
 
         # Gripper and cartesian publisher
@@ -84,7 +201,6 @@ class FrankaOperator(Operator):
             host=host, port=cartesian_command_publisher_port
         )
 
-        self.robot_init_H = self._robot.get_pose()
         self._timer = FrequencyTimer(VR_FREQ)
 
         # Class variables
@@ -124,7 +240,7 @@ class FrankaOperator(Operator):
             print("Starting control first frame")
             self._robot.home()
             time.sleep(2)
-            self.home_affine = self._robot.get_pose()
+            self.home_affine = self._robot.last_eef_pose
             self.home_pose = self.affine_to_robot_pose_aa(self.home_affine)
             self.is_first_frame = False
         if self.controller_state.right_a:
@@ -134,7 +250,7 @@ class FrankaOperator(Operator):
         if self.controller_state.right_b:
             self.start_teleop = False
             self.init_affine = None
-            self.home_affine = self._robot.get_pose()
+            self.home_affine = self._robot.last_eef_pose
             self.home_pose = self.affine_to_robot_pose_aa(self.home_affine)
 
         if self.start_teleop:
@@ -152,44 +268,30 @@ class FrankaOperator(Operator):
         elif self.controller_state.right_hand_trigger > 0.5:
             gripper_state = GRIPPER_OPEN
         if gripper_state is not None and gripper_state != self.gripper_correct_state:
-            self._robot.set_gripper_state(gripper_state * 800)
+            self._robot.gripper_control(gripper_state)
             self.gripper_correct_state = gripper_state
 
         if self.start_teleop:
-            home_translation = self.home_affine[:3, 3]
-            home_rotation = self.home_affine[:3, :3]
+            delta_translation = relative_affine[:3, 3]
+            delta_rotation_aa = R.from_matrix(relative_affine[:3, :3]).as_rotvec()
 
-            # Target
-            target_translation = home_translation + relative_affine[:3, 3]
-            target_rotation = home_rotation @ relative_affine[:3, :3]
-
-            target_affine = np.block(
-                [[target_rotation, target_translation.reshape(-1, 1)], [0, 0, 0, 1]]
-            )
-
-            target_pose = self.affine_to_robot_pose_aa(target_affine).tolist()
-            current_pose = self.affine_to_robot_pose_aa(self._robot.get_pose()).tolist()
-
-            delta_translation = np.array(target_pose[:3] - np.array(current_pose[:3]))
             delta_translation = np.clip(
                 delta_translation,
                 a_min=FRANKA_CART_STEP_LIMITS[0],
                 a_max=FRANKA_CART_STEP_LIMITS[1],
             )
 
-            des_translation = delta_translation + np.array(current_pose[:3])
-            des_translation = np.clip(
-                des_translation, a_min=ROBOT_WORKSPACE[0], a_max=ROBOT_WORKSPACE[1]
-            ).tolist()
-
-            des_rotation = target_pose[3:]
-            des_pose = des_translation + des_rotation
+            delta_pose = np.concatenate((delta_translation, delta_rotation_aa))
         else:
-            des_pose = self.home_pose
-        # print("Destination_pose:", des_pose)
+            delta_pose = np.zeros((6, 1))
+
+        print("Delta pose:", delta_pose)
 
         # Save the states here
         # TODO:
 
         if self.start_teleop:
-            self._robot.arm_control(des_pose)
+            return
+            # self._robot.move_to_target_pose(
+            #     "OSC_POSE", delta_pose, num_steps=40, num_additional_steps=10
+            # )
