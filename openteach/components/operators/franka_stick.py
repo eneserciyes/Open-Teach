@@ -12,7 +12,8 @@ from openteach.constants import (
     FRANKA_STEP_LIMITS,
     GRIPPER_CLOSE,
     GRIPPER_OPEN,
-    ROBOT_WORKSPACE,
+    ROBOT_WORKSPACE_MAX,
+    ROBOT_WORKSPACE_MIN,
     VR_FREQ,
     H_R_V_star,
     H_R_V,
@@ -173,7 +174,7 @@ def mat2posaa(mat):
 
 
 def mat2posrot(mat):
-    return mat[:3, 3], mat[:3, :3]
+    return mat[:3, 3:], mat[:3, :3]
 
 
 class FrankaOperator(Operator):
@@ -298,8 +299,8 @@ class FrankaOperator(Operator):
                     a_min=current_pos + FRANKA_STEP_LIMITS[0],
                     a_max=current_pos + FRANKA_STEP_LIMITS[1],
                 ),
-                a_min=ROBOT_WORKSPACE[0],
-                a_max=ROBOT_WORKSPACE[1],
+                a_min=ROBOT_WORKSPACE_MIN,
+                a_max=ROBOT_WORKSPACE_MAX,
             )
 
             # TODO: remove this
@@ -317,5 +318,5 @@ class FrankaOperator(Operator):
         # Save the states here
         # TODO:
 
-        if self.start_teleop:
-            self._robot.osc_move("OSC_POSE", (target_pos, target_quat), num_steps=40)
+        # if self.start_teleop:
+        self._robot.osc_move("OSC_POSE", (target_pos, target_quat), num_steps=1)
