@@ -35,7 +35,7 @@ class Operator(Component, ABC):
             # try:
             if self.return_real() is True:
                 if self.robot.get_joint_position() is not None:
-                    # print("######")
+                    print("######")
                     self.timer.start_loop()
 
                     # Retargeting function
