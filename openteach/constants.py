@@ -31,7 +31,7 @@ OCULUS_VIEW_LIMITS = {
     "z_limits": [-0.04, 0.04],
 }
 
-VR_FREQ = 60
+VR_FREQ = 90
 BIMANUAL_VR_FREQ = 90
 LIBERO_FREQ = 20
 
@@ -138,6 +138,10 @@ z_min, z_max = 0.1, 0.7  # 232, 550
 ROBOT_WORKSPACE_MIN = np.array([[x_min], [y_min], [z_min]])
 ROBOT_WORKSPACE_MAX = np.array([[x_max], [y_max], [z_max]])
 ROBOT_SERVO_MODE_STEP_LIMITS = np.array([-2, 2])
+TRANSLATIONAL_POSE_VELOCITY_SCALE = 5
+ROTATIONAL_POSE_VELOCITY_SCALE = 1
+ROTATION_VELOCITY_LIMIT = 0.5
+TRANSLATION_VELOCITY_LIMIT = 1
 
 FRANKA_STEP_LIMITS = np.array([-0.1, 0.1])  # TODO: find this
 FRANKA_HOME_JOINTS = [

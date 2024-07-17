@@ -9,17 +9,20 @@ from numpy.linalg import pinv
 from openteach.components.operators.operator import Operator
 from openteach.constants import (
     ARM_TELEOP_STOP,
-    FRANKA_STEP_LIMITS,
+    VR_FREQ,
     GRIPPER_CLOSE,
     GRIPPER_OPEN,
     ROBOT_WORKSPACE_MAX,
     ROBOT_WORKSPACE_MIN,
-    VR_FREQ,
+    ROTATION_VELOCITY_LIMIT,
+    ROTATIONAL_POSE_VELOCITY_SCALE,
+    TRANSLATION_VELOCITY_LIMIT,
+    TRANSLATIONAL_POSE_VELOCITY_SCALE,
     H_R_V_star,
     H_R_V,
     FRANKA_HOME_JOINTS,
 )
-from openteach.utils.network import ZMQKeypointSubscriber, ZMQKeypointPublisher
+from openteach.utils.network import ZMQKeypointSubscriber
 from openteach.utils.timer import FrequencyTimer
 
 from deoxys.utils import YamlConfig
@@ -43,35 +46,64 @@ class Robot(FrankaInterface):
         self.controller_cfg = YamlConfig(
             os.path.join(CONFIG_ROOT, "osc-pose-controller.yml")
         ).as_easydict()
+        self.velocity_controller_cfg = YamlConfig(
+            os.path.join(CONFIG_ROOT, "osc-pose-controller-velocity.yml")
+        ).as_easydict()
 
-    def osc_move(self, controller_type, target_pose, gripper_state, num_steps):
+        self.velocity_controller_cfg = verify_controller_config(
+            self.velocity_controller_cfg
+        )
+
+    def osc_move(self, controller_type, target_pose, gripper_state):
         target_pos, target_quat = target_pose
-        # target_axis_angle = transform_utils.quat2axisangle(target_quat)
-        current_rot, current_pos = self.last_eef_rot_and_pos
+        target_mat = transform_utils.pose2mat(pose=(target_pos, target_quat))
 
-        for _ in range(num_steps):
-            current_pose = self.last_eef_pose
-            current_pos = current_pose[:3, 3:]
-            current_rot = current_pose[:3, :3]
-            current_quat = transform_utils.mat2quat(current_rot)
-            if np.dot(target_quat, current_quat) < 0.0:
-                current_quat = -current_quat
-            quat_diff = transform_utils.quat_distance(target_quat, current_quat)
-            # current_axis_angle = transform_utils.quat2axisangle(current_quat)
-            axis_angle_diff = transform_utils.quat2axisangle(quat_diff)
-            action_pos = (target_pos - current_pos).flatten() * 10
-            action_axis_angle = axis_angle_diff.flatten() * 1
-            action_pos = np.clip(action_pos, -1.0, 1.0)
-            action_axis_angle = np.clip(action_axis_angle, -0.5, 0.5)
+        current_quat, current_pos = self.last_eef_quat_and_pos
+        print("Current axis-angle:", transform_utils.quat2axisangle(current_quat))
+        current_mat = transform_utils.pose2mat(
+            pose=(current_pos.flatten(), current_quat.flatten())
+        )
 
-            action = action_pos.tolist() + action_axis_angle.tolist() + [gripper_state]
-            # logger.info(f"Action {action}")
-            self.control(
-                controller_type=controller_type,
-                action=action,
-                controller_cfg=self.controller_cfg,
-            )
-        return action
+        pose_error = transform_utils.get_pose_error(
+            target_pose=target_mat, current_pose=current_mat
+        )
+
+        if np.dot(target_quat, current_quat) < 0.0:
+            current_quat = -current_quat
+
+        quat_diff = transform_utils.quat_distance(target_quat, current_quat)
+        axis_angle_diff = transform_utils.quat2axisangle(quat_diff)
+
+        action_pos = pose_error[:3] * TRANSLATIONAL_POSE_VELOCITY_SCALE
+        action_axis_angle = axis_angle_diff.flatten() * ROTATIONAL_POSE_VELOCITY_SCALE
+
+        action_pos, _ = transform_utils.clip_translation(
+            action_pos, TRANSLATION_VELOCITY_LIMIT
+        )
+        action_axis_angle = np.clip(
+            action_axis_angle, -ROTATION_VELOCITY_LIMIT, ROTATION_VELOCITY_LIMIT
+        )
+
+        action = action_pos.tolist() + action_axis_angle.tolist()
+
+        print("Action:", action)
+        # current_pose = self.last_eef_pose
+        # current_pos = current_pose[:3, 3:]
+        # current_rot = current_pose[:3, :3]
+        # current_quat = transform_utils.mat2quat(current_rot)
+        # # current_axis_angle = transform_utils.quat2axisangle(current_quat)
+        # action_pos = (target_pos - current_pos).flatten() * 10
+        # action_axis_angle = axis_angle_diff.flatten() * 1
+        # action_pos = np.clip(action_pos, -1.0, 1.0)
+        # action_axis_angle = np.clip(action_axis_angle, -0.2, 0.2)
+
+        # action = action_pos.tolist() + action_axis_angle.tolist() + [gripper_state]
+        # logger.info(f"Action {action}")
+        self.control(
+            controller_type=controller_type,
+            action=action,
+            controller_cfg=self.velocity_controller_cfg,
+        )
 
     def reset_joints_to(
         self,
@@ -125,20 +157,10 @@ class Robot(FrankaInterface):
 
 
 def get_relative_affine(init_affine, current_affine):
-    """Returns the relative affine from the initial affine to the current affine.
-    Args:
-        init_affine: Initial affine
-        current_affine: Current affine
-    Returns:
-        Relative affine from init_affine to current_affine
-    """
-    # Relative affine from init_affine to current_affine in the VR controller frame.
     H_V_des = pinv(init_affine) @ current_affine
 
     # Transform to robot frame.
-    # Flips axes
     relative_affine_rot = (pinv(H_R_V) @ H_V_des @ H_R_V)[:3, :3]
-    # Translations flips are mirrored.
     relative_affine_trans = (pinv(H_R_V_star) @ H_V_des @ H_R_V_star)[:3, 3]
 
     # Homogeneous coordinates
@@ -172,36 +194,11 @@ class FrankaOperator(Operator):
 
         self._robot = Robot("deoxys.yml")
         self._robot.reset()
-
-        # Gripper and cartesian publisher
-        self.gripper_publisher = ZMQKeypointPublisher(host=host, port=gripper_port)
-
-        self.cartesian_publisher = ZMQKeypointPublisher(
-            host=host, port=cartesian_publisher_port
-        )
-
-        self.joint_publisher = ZMQKeypointPublisher(
-            host=host, port=joint_publisher_port
-        )
-
-        self.cartesian_command_publisher = ZMQKeypointPublisher(
-            host=host, port=cartesian_command_publisher_port
-        )
-
         self._timer = FrequencyTimer(VR_FREQ)
 
         # Class variables
-        self.resolution_scale = 1
-        self.arm_teleop_state = ARM_TELEOP_STOP
         self.is_first_frame = True
-        self.prev_gripper_flag = 0
-        self.prev_pause_flag = 0
-        self.pause_cnt = 0
         self.gripper_state = GRIPPER_OPEN
-        self.gripper_flag = 1
-        self.pause_flag = 1
-        self.gripper_cnt = 0
-
         self.start_teleop = False
         self.init_affine = None
 
@@ -213,8 +210,8 @@ class FrankaOperator(Operator):
 
         if self.is_first_frame:
             print("Starting control first frame")
-            self._robot.reset_joints_to(FRANKA_HOME_JOINTS)
-            time.sleep(2)
+            # self._robot.reset_joints_to(FRANKA_HOME_JOINTS)
+            # time.sleep(2)
             self.home_rot, self.home_pos = self._robot.last_eef_rot_and_pos
             self.is_first_frame = False
         if self.controller_state.right_a:
@@ -222,6 +219,7 @@ class FrankaOperator(Operator):
             self.start_teleop = True
             self.init_affine = self.controller_state.right_affine
         if self.controller_state.right_b:
+            print("Stop teleop")
             self.start_teleop = False
             self.init_affine = None
             self.home_rot, self.home_pos = self._robot.last_eef_rot_and_pos
@@ -254,14 +252,8 @@ class FrankaOperator(Operator):
             target_rot = self.home_rot @ relative_rot
             target_quat = transform_utils.mat2quat(target_rot)
 
-            # clip with step limits and workspace limits
-            _, current_pos = self._robot.last_eef_rot_and_pos
             target_pos = np.clip(
-                np.clip(
-                    target_pos,
-                    a_min=current_pos + FRANKA_STEP_LIMITS[0],
-                    a_max=current_pos + FRANKA_STEP_LIMITS[1],
-                ),
+                target_pos,
                 a_min=ROBOT_WORKSPACE_MIN,
                 a_max=ROBOT_WORKSPACE_MAX,
             )
@@ -281,7 +273,6 @@ class FrankaOperator(Operator):
 
         self._robot.osc_move(
             "OSC_POSE",
-            (target_pos, target_quat),
+            (target_pos.flatten(), target_quat.flatten()),
             self.gripper_state,
-            num_steps=1,
         )
