@@ -84,7 +84,7 @@ class Robot(FrankaInterface):
             action_axis_angle, -ROTATION_VELOCITY_LIMIT, ROTATION_VELOCITY_LIMIT
         )
 
-        action = action_pos.tolist() + action_axis_angle.tolist()
+        action = action_pos.tolist() + action_axis_angle.tolist() + [gripper_state]
 
         print("Action:", action)
         # current_pose = self.last_eef_pose

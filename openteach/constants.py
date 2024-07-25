@@ -134,7 +134,7 @@ H_R_V_star = np.array(  # this is for Vention Franka setup
 # Robot workspace position limits in meters
 x_min, x_max = 0, 0.8
 y_min, y_max = -0.4, 0.4
-z_min, z_max = 0.1, 0.7  # 232, 550
+z_min, z_max = 0.03, 0.7  # 232, 550
 ROBOT_WORKSPACE_MIN = np.array([[x_min], [y_min], [z_min]])
 ROBOT_WORKSPACE_MAX = np.array([[x_max], [y_max], [z_max]])
 ROBOT_SERVO_MODE_STEP_LIMITS = np.array([-2, 2])
