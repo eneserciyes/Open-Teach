@@ -8,7 +8,6 @@ from numpy.linalg import pinv
 
 from openteach.components.operators.operator import Operator
 from openteach.constants import (
-    ARM_TELEOP_STOP,
     VR_FREQ,
     GRIPPER_CLOSE,
     GRIPPER_OPEN,
@@ -19,7 +18,6 @@ from openteach.constants import (
     TRANSLATION_VELOCITY_LIMIT,
     TRANSLATIONAL_POSE_VELOCITY_SCALE,
     H_R_V_left,
-    FRANKA_HOME_JOINTS,
     H_R_V_star_left,
 )
 from openteach.utils.network import ZMQKeypointSubscriber
@@ -60,6 +58,7 @@ class Robot(FrankaInterface):
 
         current_quat, current_pos = self.last_eef_quat_and_pos
         print("Current axis-angle:", transform_utils.quat2axisangle(current_quat))
+        print("Current pos:", current_pos)
         current_mat = transform_utils.pose2mat(
             pose=(current_pos.flatten(), current_quat.flatten())
         )
@@ -84,9 +83,9 @@ class Robot(FrankaInterface):
             action_axis_angle, -ROTATION_VELOCITY_LIMIT, ROTATION_VELOCITY_LIMIT
         )
 
-        action = action_pos.tolist() + action_axis_angle.tolist()
+        action = action_pos.tolist() + action_axis_angle.tolist() + [gripper_state]
 
-        print("Action:", action)
+        # print("Action:", action)
         self.control(
             controller_type=controller_type,
             action=action,
@@ -240,7 +239,6 @@ class FrankaOperator(Operator):
             target_rot = self.home_rot @ relative_rot
             target_quat = transform_utils.mat2quat(target_rot)
 
-            print(f"Home pos: {self.home_pos}, target pos: {target_pos}")
             target_pos = np.clip(
                 target_pos,
                 a_min=ROBOT_WORKSPACE_MIN,

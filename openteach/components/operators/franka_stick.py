@@ -8,7 +8,6 @@ from numpy.linalg import pinv
 
 from openteach.components.operators.operator import Operator
 from openteach.constants import (
-    ARM_TELEOP_STOP,
     VR_FREQ,
     GRIPPER_CLOSE,
     GRIPPER_OPEN,
@@ -20,7 +19,6 @@ from openteach.constants import (
     TRANSLATIONAL_POSE_VELOCITY_SCALE,
     H_R_V_star,
     H_R_V,
-    FRANKA_HOME_JOINTS,
 )
 from openteach.utils.network import ZMQKeypointSubscriber
 from openteach.utils.timer import FrequencyTimer
@@ -43,9 +41,6 @@ class Robot(FrankaInterface):
             general_cfg_file=os.path.join(CONFIG_ROOT, cfg),
             use_visualizer=False,
         )
-        self.controller_cfg = YamlConfig(
-            os.path.join(CONFIG_ROOT, "osc-pose-controller.yml")
-        ).as_easydict()
         self.velocity_controller_cfg = YamlConfig(
             os.path.join(CONFIG_ROOT, "osc-pose-controller-velocity.yml")
         ).as_easydict()
@@ -85,7 +80,7 @@ class Robot(FrankaInterface):
             action_axis_angle, -ROTATION_VELOCITY_LIMIT, ROTATION_VELOCITY_LIMIT
         )
 
-        action = action_pos.tolist() + action_axis_angle.tolist()
+        action = action_pos.tolist() + action_axis_angle.tolist() + [gripper_state]
 
         print("Action:", action)
         self.control(
