@@ -60,6 +60,7 @@ class Robot(FrankaInterface):
 
         current_quat, current_pos = self.last_eef_quat_and_pos
         print("Current axis-angle:", transform_utils.quat2axisangle(current_quat))
+        print("Current pos:", current_pos)
         current_mat = transform_utils.pose2mat(
             pose=(current_pos.flatten(), current_quat.flatten())
         )
@@ -87,18 +88,6 @@ class Robot(FrankaInterface):
         action = action_pos.tolist() + action_axis_angle.tolist()
 
         print("Action:", action)
-        # current_pose = self.last_eef_pose
-        # current_pos = current_pose[:3, 3:]
-        # current_rot = current_pose[:3, :3]
-        # current_quat = transform_utils.mat2quat(current_rot)
-        # # current_axis_angle = transform_utils.quat2axisangle(current_quat)
-        # action_pos = (target_pos - current_pos).flatten() * 10
-        # action_axis_angle = axis_angle_diff.flatten() * 1
-        # action_pos = np.clip(action_pos, -1.0, 1.0)
-        # action_axis_angle = np.clip(action_axis_angle, -0.2, 0.2)
-
-        # action = action_pos.tolist() + action_axis_angle.tolist() + [gripper_state]
-        # logger.info(f"Action {action}")
         self.control(
             controller_type=controller_type,
             action=action,

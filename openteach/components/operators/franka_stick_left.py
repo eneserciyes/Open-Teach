@@ -18,9 +18,9 @@ from openteach.constants import (
     ROTATIONAL_POSE_VELOCITY_SCALE,
     TRANSLATION_VELOCITY_LIMIT,
     TRANSLATIONAL_POSE_VELOCITY_SCALE,
-    H_R_V_star,
-    H_R_V,
+    H_R_V_left,
     FRANKA_HOME_JOINTS,
+    H_R_V_star_left,
 )
 from openteach.utils.network import ZMQKeypointSubscriber
 from openteach.utils.timer import FrequencyTimer
@@ -148,8 +148,8 @@ def get_relative_affine(init_affine, current_affine):
     H_V_des = pinv(init_affine) @ current_affine
 
     # Transform to robot frame.
-    relative_affine_rot = (pinv(H_R_V) @ H_V_des @ H_R_V)[:3, :3]
-    relative_affine_trans = (pinv(H_R_V_star) @ H_V_des @ H_R_V_star)[:3, 3]
+    relative_affine_rot = (pinv(H_R_V_left) @ H_V_des @ H_R_V_left)[:3, :3]
+    relative_affine_trans = (pinv(H_R_V_star_left) @ H_V_des @ H_R_V_star_left)[:3, 3]
 
     # Homogeneous coordinates
     relative_affine = np.block(
@@ -240,6 +240,7 @@ class FrankaOperator(Operator):
             target_rot = self.home_rot @ relative_rot
             target_quat = transform_utils.mat2quat(target_rot)
 
+            print(f"Home pos: {self.home_pos}, target pos: {target_pos}")
             target_pos = np.clip(
                 target_pos,
                 a_min=ROBOT_WORKSPACE_MIN,
