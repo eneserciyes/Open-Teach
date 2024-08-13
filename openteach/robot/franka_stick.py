@@ -6,10 +6,11 @@ import time
 
 
 class FrankaArm(RobotWrapper):
-    def __init__(self, cfg, host_address, record_type=None):
-        self._controller = DexArmControl(cfg)
-        self.host_address = host_address
+    def __init__(self):
+        self._controller = DexArmControl()
         self._data_frequency = 50
+
+        self._controller.init_franka_arm_control()
 
     @property
     def recorder_functions(self):
@@ -32,6 +33,17 @@ class FrankaArm(RobotWrapper):
         return self._data_frequency
 
     # State information functions
+    def get_joint_state(self):
+        return self._controller.get_arm_joint_state()
+
+    def get_joint_velocity(self):
+        pass
+
+    def get_joint_torque(self):
+        pass
+
+    def get_cartesian_state(self):
+        return self._controller.get_arm_cartesian_state()
 
     def get_joint_position(self):
         return self._controller.get_arm_position()
@@ -39,18 +51,41 @@ class FrankaArm(RobotWrapper):
     def get_cartesian_position(self):
         return self._controller.get_arm_cartesian_coords()
 
+    def get_osc_position(self):
+        return self._controller.get_arm_osc_position()
+
     def get_pose(self):
         return self._controller.get_arm_pose()
 
     def reset(self):
-        return self._controller._init_franka_arm_control()
+        return self._controller.init_franka_arm_control()
 
     # Movement functions
     def home(self):
         return self._controller.home_arm()
 
-    def arm_control(self, target_pose, gripper_state):
-        self._controller.arm_control(target_pose, gripper_state)
+    def move(self, input_angles):
+        self._controller.move_arm_joint(input_angles)
+
+    def move_coords(self, cartesian_coords, duration=3):
+        self._controller.move_arm_cartesian(cartesian_coords, duration=duration)
+
+    def arm_control(self, cartesian_coords):
+        self._controller.arm_control(cartesian_coords)
+
+    def set_desired_cartesian_pose(self, cartesian_coords):
+        self._controller.set_desired_cartesian_pose(cartesian_coords)
+
+    def continue_control(self):
+        self._controller.continue_control()
+
+    def move_velocity(self, input_velocity_values, duration):
+        pass
+
+    def set_gripper_state(self, gripper_state):
+        self._controller.set_gripper_status(
+            gripper_state
+        )  # TODO: set gripper status impl
 
     def get_gripper_state_from_socket(self):
         self._gripper_state_subscriber = ZMQKeypointSubscriber(
@@ -112,21 +147,3 @@ class FrankaArm(RobotWrapper):
     def get_gripper_state(self):
         gripper_state_dict = self._controller.get_gripper_state()
         return gripper_state_dict
-
-    def get_joint_state(self):
-        pass
-
-    def get_joint_torque(self):
-        pass
-
-    def get_joint_velocity(self):
-        pass
-
-    def move(self):
-        pass
-
-    def move_coords(self):
-        pass
-
-    def set_gripper_state(self):
-        pass
