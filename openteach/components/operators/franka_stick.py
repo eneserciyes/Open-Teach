@@ -52,7 +52,7 @@ class FrankaOperator(Operator):
             host=host, port=controller_state_port, topic="controller_state"
         )
 
-        self._robot = FrankaArm("deoxys_right.yml")
+        self._robot = FrankaArm("deoxys_right.yml", host_address=host)
         self._robot.reset()
         self._timer = FrequencyTimer(VR_FREQ)
 
@@ -157,7 +157,7 @@ class FrankaOperator(Operator):
         self.cartesian_publisher.pub_keypoints(position, "cartesian")
         self.joint_publisher.pub_keypoints(joint_position, "joint")
         self.cartesian_command_publisher.pub_keypoints(
-            np.concatenate((target_pos, target_quat), "cartesian")
+            np.concatenate((target_pos.flatten(), target_quat)), "cartesian"
         )
 
         self._robot.arm_control(

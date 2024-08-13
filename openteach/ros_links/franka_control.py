@@ -24,6 +24,7 @@ CONFIG_ROOT = Path(__file__).parent
 
 class Robot(FrankaInterface):
     def __init__(self, cfg):
+        print("Running Franka interface:", cfg)
         super(Robot, self).__init__(
             general_cfg_file=os.path.join(CONFIG_ROOT, cfg),
             use_visualizer=False,
@@ -166,7 +167,7 @@ class DexArmControl:
         )
 
     def get_arm_cartesian_coords(self):
-        current_quat, current_pos = self.robot.get_cartesian_position()
+        current_quat, current_pos = self.robot.last_eef_quat_and_pos
 
         current_pos = np.array(current_pos, dtype=np.float32).flatten()
         current_quat = np.array(current_quat, dtype=np.float32).flatten()

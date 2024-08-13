@@ -6,8 +6,9 @@ import time
 
 
 class FrankaArm(RobotWrapper):
-    def __init__(self, cfg):
+    def __init__(self, cfg, host_address, record_type=None):
         self._controller = DexArmControl(cfg)
+        self.host_address = host_address
         self._data_frequency = 50
 
     @property
@@ -111,3 +112,21 @@ class FrankaArm(RobotWrapper):
     def get_gripper_state(self):
         gripper_state_dict = self._controller.get_gripper_state()
         return gripper_state_dict
+
+    def get_joint_state(self):
+        pass
+
+    def get_joint_torque(self):
+        pass
+
+    def get_joint_velocity(self):
+        pass
+
+    def move(self):
+        pass
+
+    def move_coords(self):
+        pass
+
+    def set_gripper_state(self):
+        pass

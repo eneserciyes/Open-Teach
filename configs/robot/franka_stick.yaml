@@ -23,6 +23,8 @@ controllers:
   -
     _target_: openteach.robot.franka_stick.FrankaArm
     cfg: deoxys_right.yml
+    host_address: ${host_address}
+
 # Information to be recorded for the robot 
 recorded_data:
   - 
