@@ -140,9 +140,9 @@ H_R_V_star_left = np.array(  # this is for Vention Franka setup
 )
 
 # Robot workspace position limits in meters
-x_min, x_max = 0.2, 0.57
+x_min, x_max = 0.2, 0.65
 y_min, y_max = -0.4, 0.4
-z_min, z_max = 0.1, 0.7  # 232, 550
+z_min, z_max = 0.02, 0.7  # 232, 550
 ROBOT_WORKSPACE_MIN = np.array([[x_min], [y_min], [z_min]])
 ROBOT_WORKSPACE_MAX = np.array([[x_max], [y_max], [z_max]])
 ROBOT_SERVO_MODE_STEP_LIMITS = np.array([-2, 2])
@@ -152,6 +152,7 @@ ROTATION_VELOCITY_LIMIT = 0.5
 TRANSLATION_VELOCITY_LIMIT = 1
 
 FRANKA_STEP_LIMITS = np.array([-0.1, 0.1])  # TODO: find this
+
 FRANKA_HOME_JOINTS = [
     0.09162008114028396,
     -0.19826458111314524,

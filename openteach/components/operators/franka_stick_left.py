@@ -9,6 +9,7 @@ from numpy.linalg import pinv
 from openteach.components.operators.operator import Operator
 from openteach.constants import (
     VR_FREQ,
+    FRANKA_HOME_JOINTS,
     GRIPPER_CLOSE,
     GRIPPER_OPEN,
     ROBOT_WORKSPACE_MAX,
@@ -41,9 +42,6 @@ class Robot(FrankaInterface):
             general_cfg_file=os.path.join(CONFIG_ROOT, cfg),
             use_visualizer=False,
         )
-        self.controller_cfg = YamlConfig(
-            os.path.join(CONFIG_ROOT, "osc-pose-controller.yml")
-        ).as_easydict()
         self.velocity_controller_cfg = YamlConfig(
             os.path.join(CONFIG_ROOT, "osc-pose-controller-velocity.yml")
         ).as_easydict()
@@ -57,8 +55,6 @@ class Robot(FrankaInterface):
         target_mat = transform_utils.pose2mat(pose=(target_pos, target_quat))
 
         current_quat, current_pos = self.last_eef_quat_and_pos
-        print("Current axis-angle:", transform_utils.quat2axisangle(current_quat))
-        print("Current pos:", current_pos)
         current_mat = transform_utils.pose2mat(
             pose=(current_pos.flatten(), current_quat.flatten())
         )
@@ -85,7 +81,7 @@ class Robot(FrankaInterface):
 
         action = action_pos.tolist() + action_axis_angle.tolist() + [gripper_state]
 
-        # print("Action:", action)
+        print("Action:", action)
         self.control(
             controller_type=controller_type,
             action=action,
@@ -115,6 +111,13 @@ class Robot(FrankaInterface):
             gripper_action = -1
         else:
             gripper_action = 1
+
+        # This is for varying initialization of joints a little bit to
+        # increase data variation.
+        start_joint_pos = [
+            e + np.clip(np.random.randn() * 0.005, -0.005, 0.005)
+            for e in start_joint_pos
+        ]
         if type(start_joint_pos) is list:
             action = start_joint_pos + [gripper_action]
         else:
@@ -163,10 +166,6 @@ class FrankaOperator(Operator):
         self,
         host,
         controller_state_port,
-        gripper_port=None,
-        cartesian_publisher_port=None,
-        joint_publisher_port=None,
-        cartesian_command_publisher_port=None,
     ) -> None:
         self.notify_component_start("Franka stick operator")
 
@@ -174,10 +173,6 @@ class FrankaOperator(Operator):
         self._controller_state_subscriber = ZMQKeypointSubscriber(
             host=host, port=controller_state_port, topic="controller_state"
         )
-
-        # # Subscribers for the transformed hand keypoints
-        self._transformed_arm_keypoint_subscriber = None
-        self._transformed_hand_keypoint_subscriber = None
 
         self._robot = Robot("deoxys_left.yml")
         self._robot.reset()
@@ -197,8 +192,8 @@ class FrankaOperator(Operator):
 
         if self.is_first_frame:
             print("Starting control first frame")
-            # self._robot.reset_joints_to(FRANKA_HOME_JOINTS)
-            # time.sleep(2)
+            self._robot.reset_joints_to(FRANKA_HOME_JOINTS)
+            time.sleep(2)
             self.home_rot, self.home_pos = self._robot.last_eef_rot_and_pos
             self.is_first_frame = False
         if self.controller_state.left_x:
@@ -245,8 +240,7 @@ class FrankaOperator(Operator):
                 a_max=ROBOT_WORKSPACE_MAX,
             )
 
-            # TODO: remove this
-            target_quat = transform_utils.mat2quat(self.home_rot)
+            # target_quat = transform_utils.mat2quat(self.home_rot)
         else:
             target_pos, target_quat = (
                 self.home_pos,
