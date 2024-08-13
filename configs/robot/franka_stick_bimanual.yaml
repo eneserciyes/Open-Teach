@@ -12,6 +12,10 @@ operators:
     _target_: openteach.components.operators.franka_stick.FrankaOperator
     host: ${host_address}
     controller_state_port: ${transformed_position_keypoint_port}
+  - 
+    _target_: openteach.components.operators.franka_stick_left.FrankaOperator
+    host: ${host_address}
+    controller_state_port: ${transformed_position_keypoint_port}
 
 # Information to be recorded for the robot 
 recorded_data:

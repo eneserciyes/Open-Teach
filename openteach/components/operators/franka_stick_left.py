@@ -18,8 +18,8 @@ from openteach.constants import (
     ROTATIONAL_POSE_VELOCITY_SCALE,
     TRANSLATION_VELOCITY_LIMIT,
     TRANSLATIONAL_POSE_VELOCITY_SCALE,
-    H_R_V_star,
-    H_R_V,
+    H_R_V_left,
+    H_R_V_star_left,
 )
 from openteach.utils.network import ZMQKeypointSubscriber
 from openteach.utils.timer import FrequencyTimer
@@ -150,8 +150,8 @@ def get_relative_affine(init_affine, current_affine):
     H_V_des = pinv(init_affine) @ current_affine
 
     # Transform to robot frame.
-    relative_affine_rot = (pinv(H_R_V) @ H_V_des @ H_R_V)[:3, :3]
-    relative_affine_trans = (pinv(H_R_V_star) @ H_V_des @ H_R_V_star)[:3, 3]
+    relative_affine_rot = (pinv(H_R_V_left) @ H_V_des @ H_R_V_left)[:3, :3]
+    relative_affine_trans = (pinv(H_R_V_star_left) @ H_V_des @ H_R_V_star_left)[:3, 3]
 
     # Homogeneous coordinates
     relative_affine = np.block(
@@ -174,7 +174,7 @@ class FrankaOperator(Operator):
             host=host, port=controller_state_port, topic="controller_state"
         )
 
-        self._robot = Robot("deoxys_right.yml")
+        self._robot = Robot("deoxys_left.yml")
         self._robot.reset()
         self._timer = FrequencyTimer(VR_FREQ)
 
@@ -196,11 +196,11 @@ class FrankaOperator(Operator):
             time.sleep(2)
             self.home_rot, self.home_pos = self._robot.last_eef_rot_and_pos
             self.is_first_frame = False
-        if self.controller_state.right_a:
+        if self.controller_state.left_x:
             print("Start teleop")
             self.start_teleop = True
-            self.init_affine = self.controller_state.right_affine
-        if self.controller_state.right_b:
+            self.init_affine = self.controller_state.left_affine
+        if self.controller_state.left_y:
             print("Stop teleop")
             self.start_teleop = False
             self.init_affine = None
@@ -208,16 +208,16 @@ class FrankaOperator(Operator):
 
         if self.start_teleop:
             relative_affine = get_relative_affine(
-                self.init_affine, self.controller_state.right_affine
+                self.init_affine, self.controller_state.left_affine
             )
         else:
             relative_affine = np.zeros((4, 4))
             relative_affine[3, 3] = 1
 
         gripper_action = None
-        if self.controller_state.right_index_trigger > 0.5:
+        if self.controller_state.left_index_trigger > 0.5:
             gripper_action = GRIPPER_CLOSE
-        elif self.controller_state.right_hand_trigger > 0.5:
+        elif self.controller_state.left_hand_trigger > 0.5:
             gripper_action = GRIPPER_OPEN
 
         if gripper_action is not None and gripper_action != self.gripper_state:
