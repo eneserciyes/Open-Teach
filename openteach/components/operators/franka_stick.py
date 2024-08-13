@@ -1,3 +1,4 @@
+import pickle
 import time
 from pathlib import Path
 import os
@@ -166,6 +167,9 @@ class FrankaOperator(Operator):
         self,
         host,
         controller_state_port,
+        save_actions=False,
+        exp_name="",
+        demo_num=0,
     ) -> None:
         self.notify_component_start("Franka stick operator")
 
@@ -183,9 +187,24 @@ class FrankaOperator(Operator):
         self.gripper_state = GRIPPER_OPEN
         self.start_teleop = False
         self.init_affine = None
+        self.save_actions = save_actions
+        self.demo_num = demo_num
+        self.exp_name = exp_name
+        self.commanded_cartesian_states = []
+
+        if save_actions:
+            assert self.exp_name != ""
+            self.save_dir = Path(f"~/data/tactile-3d-learning/{exp_name}/")
+            self.save_dir.mkdir(parents=True, exist_ok=True)
 
     def return_real(self):
         return True
+
+    def save(self):
+        demo_dir = self.save_dir / f"{self.demo_num:03d}"
+        demo_dir.mkdir(exist_ok=True)
+        with open(demo_dir / "actions.pkl", "wb") as f:
+            pickle.dump(self.commanded_cartesian_states, f)
 
     def _apply_retargeted_angles(self) -> None:
         self.controller_state = self._controller_state_subscriber.recv_keypoints()
@@ -250,7 +269,10 @@ class FrankaOperator(Operator):
         # print("Target axis-angle:", transform_utils.quat2axisangle(target_quat))
 
         # Save the states here
-        # TODO:
+        if self.save_actions:
+            self.commanded_cartesian_states.append(
+                (target_pos.flatten(), target_quat.flatten())
+            )
 
         self._robot.osc_move(
             "OSC_POSE",

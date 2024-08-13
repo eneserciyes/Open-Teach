@@ -12,10 +12,8 @@ operators:
     _target_: openteach.components.operators.franka_stick.FrankaOperator
     host: ${host_address}
     controller_state_port: ${transformed_position_keypoint_port}
+    save_target_states: ${save_target_states}
+    exp_name: ${exp_name}
+    demo_num: ${demo_num}
 
-# Information to be recorded for the robot 
-recorded_data:
-  - 
-    - joint_states
-    - cartesian_states
-    - gripper_states
+
