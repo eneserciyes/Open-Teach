@@ -10,7 +10,7 @@ operate: true
 sim_env: false
 run_xela:  false
 demo_num: 0
-exp_name: ""
+storage_path: ""
 save_actions: false
 
 # Visualize 3D and 2D plots

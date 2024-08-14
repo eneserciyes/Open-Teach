@@ -57,6 +57,4 @@ class Operator(Component, ABC):
         finally:
             if self.save_actions:
                 self.save()
-            self.transformed_arm_keypoint_subscriber.stop()
-            self.transformed_hand_keypoint_subscriber.stop()
             print("Stopping the teleoperator!")

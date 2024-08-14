@@ -168,7 +168,7 @@ class FrankaOperator(Operator):
         host,
         controller_state_port,
         save_actions=False,
-        exp_name="",
+        storage_path="",
         demo_num=0,
     ) -> None:
         self.notify_component_start("Franka stick operator")
@@ -189,19 +189,19 @@ class FrankaOperator(Operator):
         self.init_affine = None
         self.save_actions = save_actions
         self.demo_num = demo_num
-        self.exp_name = exp_name
         self.commanded_cartesian_states = []
 
         if save_actions:
-            assert self.exp_name != ""
-            self.save_dir = Path(f"~/data/tactile-3d-learning/{exp_name}/")
+            assert storage_path != ""
+            self.save_dir = Path(storage_path)
             self.save_dir.mkdir(parents=True, exist_ok=True)
 
     def return_real(self):
         return True
 
     def save(self):
-        demo_dir = self.save_dir / f"{self.demo_num:03d}"
+        print("Saving actions...")
+        demo_dir = self.save_dir / f"demonstration_{self.demo_num:03d}"
         demo_dir.mkdir(exist_ok=True)
         with open(demo_dir / "actions.pkl", "wb") as f:
             pickle.dump(self.commanded_cartesian_states, f)
@@ -271,7 +271,7 @@ class FrankaOperator(Operator):
         # Save the states here
         if self.save_actions:
             self.commanded_cartesian_states.append(
-                (target_pos.flatten(), target_quat.flatten())
+                (target_pos.flatten(), target_quat.flatten(), self.gripper_state)
             )
 
         self._robot.osc_move(

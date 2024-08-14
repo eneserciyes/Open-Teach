@@ -12,8 +12,8 @@ operators:
     _target_: openteach.components.operators.franka_stick.FrankaOperator
     host: ${host_address}
     controller_state_port: ${transformed_position_keypoint_port}
-    save_target_states: ${save_target_states}
-    exp_name: ${exp_name}
+    save_actions: ${save_actions}
+    storage_path: ${storage_path}
     demo_num: ${demo_num}
 
 
