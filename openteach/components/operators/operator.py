@@ -26,35 +26,32 @@ class Operator(Component, ABC):
     def _apply_retargeted_angles(self):
         pass
 
-    def save(self):
-        pass
-
     # This function applies the retargeted angles to the robot
     def stream(self):
         self.notify_component_start("{} control".format(self.robot))
         print("Start controlling the robot hand using the Oculus Headset.\n")
 
-        try:
-            while True:
-                # try:
-                if self.return_real() is True:
-                    if self.robot.get_joint_position() is not None:
-                        self.timer.start_loop()
-
-                        # Retargeting function
-                        self._apply_retargeted_angles()
-
-                        self.timer.end_loop()
-                else:
+        while True:
+            # try:
+            if self.return_real() is True:
+                if self.robot.get_joint_position() is not None:
                     self.timer.start_loop()
 
                     # Retargeting function
                     self._apply_retargeted_angles()
 
                     self.timer.end_loop()
-        except KeyboardInterrupt:
-            pass
-        finally:
-            if self.save_actions:
-                self.save()
-            print("Stopping the teleoperator!")
+            else:
+                self.timer.start_loop()
+
+                # Retargeting function
+                self._apply_retargeted_angles()
+
+                self.timer.end_loop()
+
+        # except KeyboardInterrupt:
+        #     break
+
+        self.transformed_arm_keypoint_subscriber.stop()
+        self.transformed_hand_keypoint_subscriber.stop()
+        print("Stopping the teleoperator!")
