@@ -1,3 +1,4 @@
+import pickle
 import time
 from pathlib import Path
 import os
@@ -6,7 +7,7 @@ from typing import Union
 import numpy as np
 from numpy.linalg import pinv
 
-from openteach.components.operators.operator import Operator
+from openteach.components.component import Component
 from openteach.constants import (
     VR_FREQ,
     FRANKA_HOME_JOINTS,
@@ -161,14 +162,12 @@ def get_relative_affine(init_affine, current_affine):
     return relative_affine
 
 
-class FrankaOperator(Operator):
+class FrankaOperator(Component):
     def __init__(
         self,
         host,
         controller_state_port,
     ) -> None:
-        self.notify_component_start("Franka stick operator")
-
         # Subscribe controller state
         self._controller_state_subscriber = ZMQKeypointSubscriber(
             host=host, port=controller_state_port, topic="controller_state"
@@ -176,7 +175,9 @@ class FrankaOperator(Operator):
 
         self._robot = Robot("deoxys_right.yml")
         self._robot.reset()
-        self._timer = FrequencyTimer(VR_FREQ)
+        self.timer = FrequencyTimer(VR_FREQ)
+
+        self._states = []
 
         # Class variables
         self.is_first_frame = True
@@ -247,17 +248,48 @@ class FrankaOperator(Operator):
                 transform_utils.mat2quat(self.home_rot),
             )
 
-        # print("Target axis-angle:", transform_utils.quat2axisangle(target_quat))
-
         # Save the states here
         state = {
-            "pose": self.robot.get_cartesian_position(),
-            "joint_position": self.robot.get_joint_position(),
+            "pose": self._robot.last_eef_quat_and_pos,
             "commanded_pose": np.concatenate((target_pos.flatten(), target_quat)),
+            "gripper_state": self.gripper_state,
+            "timestamp": time.time(),
         }
+        self._states.append(state)
 
         self._robot.osc_move(
             "OSC_POSE",
             (target_pos.flatten(), target_quat.flatten()),
             self.gripper_state,
         )
+
+    def save_states(self):
+        teleop_time = self._states[-1]["timestamp"] - self._states[0]["timestamp"]
+        print(f"Took {teleop_time} seconds")
+        print(f"Saved {len(self._states)} datapoints..")
+        print(f"Action save frequency : {len(self._states) / teleop_time} Hz")
+
+        with open("extracted_data/test.pkl", "wb") as f:
+            pickle.dump(self._states, f)
+
+    def stream(self):
+        self.notify_component_start("Bimanual Franka control")
+        print("Start controlling the robot hand using the Oculus Headset.\n")
+
+        try:
+            while True:
+                if self._robot.get_joint_position() is not None:
+                    self.timer.start_loop()
+
+                    # Retargeting function
+                    self._apply_retargeted_angles()
+
+                    self.timer.end_loop()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            if len(self._states) != 0:
+                self.save_states()
+                time.sleep(2)
+
+        print("Stopping the teleoperator!")
