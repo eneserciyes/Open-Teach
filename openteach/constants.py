@@ -125,7 +125,7 @@ VR_CONTROLLER_TOPIC = b"oculus_controller"
 
 # TODO: change these correctly
 H_R_V = np.array(  # this is for vention table 230 arm
-    [[1, 0, 0, 0], [0, 0, -1, 0], [0, -1, 0, 0], [0, 0, 0, 1]]
+    [[1, 0, 0, 0], [0, 0, 1, 0], [0, -1, 0, 0], [0, 0, 0, 1]]
 )
 
 H_R_V_left = np.array(  # this is for vention table 230 arm
@@ -140,14 +140,14 @@ H_R_V_star_left = np.array(  # this is for Vention Franka setup
 )
 
 # Robot workspace position limits in meters
-x_min, x_max = 0.2, 0.65
+x_min, x_max = 0.2, 0.75
 y_min, y_max = -0.4, 0.4
-z_min, z_max = 0.02, 0.7  # 232, 550
+z_min, z_max = 0.05, 0.7  # 232, 550
 ROBOT_WORKSPACE_MIN = np.array([[x_min], [y_min], [z_min]])
 ROBOT_WORKSPACE_MAX = np.array([[x_max], [y_max], [z_max]])
 ROBOT_SERVO_MODE_STEP_LIMITS = np.array([-2, 2])
 TRANSLATIONAL_POSE_VELOCITY_SCALE = 5
-ROTATIONAL_POSE_VELOCITY_SCALE = 1
+ROTATIONAL_POSE_VELOCITY_SCALE = 0.75
 ROTATION_VELOCITY_LIMIT = 0.5
 TRANSLATION_VELOCITY_LIMIT = 1
 
