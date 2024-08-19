@@ -32,26 +32,27 @@ class Operator(Component, ABC):
         print("Start controlling the robot hand using the Oculus Headset.\n")
 
         while True:
-            # try:
-            if self.return_real() is True:
-                if self.robot.get_joint_position() is not None:
+            try:
+                if self.return_real() is True:
+                    if self.robot.get_joint_position() is not None:
+                        self.timer.start_loop()
+
+                        # Retargeting function
+                        self._apply_retargeted_angles()
+
+                        self.timer.end_loop()
+                else:
                     self.timer.start_loop()
 
                     # Retargeting function
                     self._apply_retargeted_angles()
 
                     self.timer.end_loop()
-            else:
-                self.timer.start_loop()
 
-                # Retargeting function
-                self._apply_retargeted_angles()
+            except KeyboardInterrupt:
+                break
 
-                self.timer.end_loop()
+            finally:
+                self._save_states()
 
-        # except KeyboardInterrupt:
-        #     break
-
-        self.transformed_arm_keypoint_subscriber.stop()
-        self.transformed_hand_keypoint_subscriber.stop()
         print("Stopping the teleoperator!")

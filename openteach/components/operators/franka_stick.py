@@ -250,7 +250,11 @@ class FrankaOperator(Operator):
         # print("Target axis-angle:", transform_utils.quat2axisangle(target_quat))
 
         # Save the states here
-        # TODO:
+        state = {
+            "pose": self.robot.get_cartesian_position(),
+            "joint_position": self.robot.get_joint_position(),
+            "commanded_pose": np.concatenate((target_pos.flatten(), target_quat)),
+        }
 
         self._robot.osc_move(
             "OSC_POSE",

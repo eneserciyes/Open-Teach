@@ -9,11 +9,7 @@ detector:
 # Operators used to retarget the keypoints
 operators:
   - 
-    _target_: openteach.components.operators.franka_stick.FrankaOperator
-    host: ${host_address}
-    controller_state_port: ${transformed_position_keypoint_port}
-  - 
-    _target_: openteach.components.operators.franka_stick_left.FrankaOperator
+    _target_: openteach.components.operators.franka_stick_bimanual.FrankaOperator
     host: ${host_address}
     controller_state_port: ${transformed_position_keypoint_port}
 
