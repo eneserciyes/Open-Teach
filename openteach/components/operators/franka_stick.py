@@ -173,7 +173,7 @@ class FrankaOperator(Component):
             host=host, port=controller_state_port, topic="controller_state"
         )
 
-        self._robot = Robot("deoxys_right.yml", control_freq=60)
+        self._robot = Robot("deoxys_right.yml", control_freq=90)
         self._robot.reset()
         self.timer = FrequencyTimer(VR_FREQ)
 

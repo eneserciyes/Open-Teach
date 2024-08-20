@@ -5,14 +5,14 @@ defaults:
   - override hydra/job_logging: disabled 
 
 robot_cam_serial_numbers:
-  - 1: '239122072217'
-  - 2: '023322062082'
-  - 3: '233522071078'
-  - 4: '141722076049'
+  - 0: '147322072736'
+  - 1: '028522071213'
+  - 2: '147322072546'
+  - 3: '152222073516'
   
 cam_configs:
-  width: 640 
-  height: 480 
+  width: 1280 
+  height: 720 
   fps: 30
   processing_preset: 1 # High accuracy mode
   rotation_angle: 0
