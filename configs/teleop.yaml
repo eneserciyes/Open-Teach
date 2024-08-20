@@ -9,7 +9,7 @@ defaults:
 operate: true
 sim_env: false
 run_xela:  false
-storage_path: extracted_data/dummy/
+storage_path: extracted_data/tracking-policies/
 demo_num: 1
 
 # Visualize 3D and 2D plots

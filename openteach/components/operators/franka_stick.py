@@ -83,6 +83,7 @@ class Robot(FrankaInterface):
 
         action = action_pos.tolist() + action_axis_angle.tolist() + [gripper_state]
 
+        print("Action:", action)
         self.control(
             controller_type=controller_type,
             action=action,
@@ -163,13 +164,7 @@ def get_relative_affine(init_affine, current_affine):
 
 
 class FrankaOperator(Component):
-    def __init__(
-        self,
-        host,
-        controller_state_port,
-        storage_path,
-        demo_num
-    ) -> None:
+    def __init__(self, host, controller_state_port, storage_path, demo_num) -> None:
         # Subscribe controller state
         self._controller_state_subscriber = ZMQKeypointSubscriber(
             host=host, port=controller_state_port, topic="controller_state"
@@ -181,7 +176,11 @@ class FrankaOperator(Component):
         self._robot.reset()
         self.timer = FrequencyTimer(VR_FREQ)
 
-        self._states = []
+        # states lists
+        self._poses = []
+        self._commanded_poses = []
+        self._gripper_states = []
+        self._timestamps = []
 
         # Class variables
         self.is_first_frame = True
@@ -252,13 +251,12 @@ class FrankaOperator(Component):
             )
 
         # Save the states here
-        state = {
-            "pose": self._robot.last_eef_quat_and_pos,
-            "commanded_pose": np.concatenate((target_pos.flatten(), target_quat)),
-            "gripper_state": self.gripper_state,
-            "timestamp": time.time(),
-        }
-        self._states.append(state)
+        self._poses.append(self._robot.last_eef_quat_and_pos)
+        self._commanded_poses.append(
+            np.concatenate((target_pos.flatten(), target_quat))
+        )
+        self._gripper_states.append(self.gripper_state)
+        self._timestamps.append(time.time())
 
         self._robot.osc_move(
             "OSC_POSE",
@@ -272,11 +270,19 @@ class FrankaOperator(Component):
         print(f"Saved {len(self._states)} datapoints..")
         print(f"Action save frequency : {len(self._states) / teleop_time} Hz")
 
-        save_path = Path(self._storage_path) /  f"demonstration_{self._demo_num}"
+        save_path = Path(self._storage_path) / f"demonstration_{self._demo_num}"
         save_path.mkdir(parents=True, exist_ok=True)
 
         with open(save_path / "states.pkl", "wb") as f:
-            pickle.dump(self._states, f)
+            pickle.dump(
+                {
+                    "poses": self._poses,
+                    "commanded_poses": self._commanded_poses,
+                    "gripper_states": self._gripper_states,
+                    "timestamps": self._timestamps,
+                },
+                f,
+            )
 
     def stream(self):
         self.notify_component_start("Bimanual Franka control")

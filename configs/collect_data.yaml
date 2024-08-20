@@ -6,7 +6,7 @@ defaults:
   - override hydra/hydra_logging: disabled  
   - override hydra/job_logging: disabled 
 
-storage_path: extracted_data/dummy/
+storage_path: extracted_data/tracking-policies/
 demo_num: 1
 sim_env: false
 is_xela: false
