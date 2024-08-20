@@ -167,11 +167,15 @@ class FrankaOperator(Component):
         self,
         host,
         controller_state_port,
+        storage_path,
+        demo_num
     ) -> None:
         # Subscribe controller state
         self._controller_state_subscriber = ZMQKeypointSubscriber(
             host=host, port=controller_state_port, topic="controller_state"
         )
+        self._storage_path = storage_path
+        self._demo_num = demo_num
 
         self._robot = Robot("deoxys_right.yml", control_freq=90)
         self._robot.reset()
@@ -268,7 +272,10 @@ class FrankaOperator(Component):
         print(f"Saved {len(self._states)} datapoints..")
         print(f"Action save frequency : {len(self._states) / teleop_time} Hz")
 
-        with open("extracted_data/test.pkl", "wb") as f:
+        save_path = Path(self._storage_path) /  f"demonstration_{self._demo_num}"
+        save_path.mkdir(parents=True, exist_ok=True)
+
+        with open(save_path / "states.pkl", "wb") as f:
             pickle.dump(self._states, f)
 
     def stream(self):
