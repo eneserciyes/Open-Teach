@@ -38,10 +38,11 @@ CONFIG_ROOT = Path(__file__).parent
 
 
 class Robot(FrankaInterface):
-    def __init__(self, cfg):
+    def __init__(self, cfg, control_freq=20):
         super(Robot, self).__init__(
             general_cfg_file=os.path.join(CONFIG_ROOT, cfg),
             use_visualizer=False,
+            control_freq=control_freq,
         )
         self.velocity_controller_cfg = YamlConfig(
             os.path.join(CONFIG_ROOT, "osc-pose-controller-velocity.yml")
@@ -82,7 +83,6 @@ class Robot(FrankaInterface):
 
         action = action_pos.tolist() + action_axis_angle.tolist() + [gripper_state]
 
-        print("Action:", action)
         self.control(
             controller_type=controller_type,
             action=action,
@@ -173,7 +173,7 @@ class FrankaOperator(Component):
             host=host, port=controller_state_port, topic="controller_state"
         )
 
-        self._robot = Robot("deoxys_right.yml")
+        self._robot = Robot("deoxys_right.yml", control_freq=60)
         self._robot.reset()
         self.timer = FrequencyTimer(VR_FREQ)
 
@@ -241,7 +241,6 @@ class FrankaOperator(Component):
                 a_max=ROBOT_WORKSPACE_MAX,
             )
 
-            # target_quat = transform_utils.mat2quat(self.home_rot)
         else:
             target_pos, target_quat = (
                 self.home_pos,
