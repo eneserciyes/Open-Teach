@@ -83,7 +83,6 @@ class Robot(FrankaInterface):
 
         action = action_pos.tolist() + action_axis_angle.tolist() + [gripper_state]
 
-        print("Action:", action)
         self.control(
             controller_type=controller_type,
             action=action,
@@ -251,9 +250,10 @@ class FrankaOperator(Component):
             )
 
         # Save the states here
-        self._poses.append(self._robot.last_eef_quat_and_pos)
+        quat, pos = self._robot.last_eef_quat_and_pos
+        self._poses.append(np.concatenate((pos.flatten(), quat.flatten())))
         self._commanded_poses.append(
-            np.concatenate((target_pos.flatten(), target_quat))
+            np.concatenate((target_pos.flatten(), target_quat.flatten()))
         )
         self._gripper_states.append(self.gripper_state)
         self._timestamps.append(time.time())
@@ -265,10 +265,10 @@ class FrankaOperator(Component):
         )
 
     def save_states(self):
-        teleop_time = self._states[-1]["timestamp"] - self._states[0]["timestamp"]
+        teleop_time = self._timestamps[-1] - self._timestamps[0]
         print(f"Took {teleop_time} seconds")
-        print(f"Saved {len(self._states)} datapoints..")
-        print(f"Action save frequency : {len(self._states) / teleop_time} Hz")
+        print(f"Saved {len(self._timestamps)} datapoints..")
+        print(f"Action save frequency : {len(self._timestamps) / teleop_time} Hz")
 
         save_path = Path(self._storage_path) / f"demonstration_{self._demo_num}"
         save_path.mkdir(parents=True, exist_ok=True)
@@ -300,7 +300,7 @@ class FrankaOperator(Component):
         except KeyboardInterrupt:
             pass
         finally:
-            if len(self._states) != 0:
+            if len(self._poses) != 0:
                 self.save_states()
                 time.sleep(2)
 
